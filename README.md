@@ -45,9 +45,10 @@ npm run build      # static site in dist/
 
 Every system, stock or modded, is one JSON file following `data/schema/system.schema.json`: pack metadata (source mod and pinned version, calendar, root and home body) and a flat list of bodies. Each body has its parent, physical properties (radius, gravitational parameter, rotation, optional atmosphere and SOI) and Keplerian orbital elements relative to its parent. Units are metres and seconds, and **all angles are degrees** (including mean anomaly at epoch, which KSP itself stores in radians). Bodies use flat colours rather than mod textures, for licensing reasons.
 
-## Deployment
+## Branches and deployment
 
-Everything is served from the `gh-pages` branch, so Pages must be set once to **Deploy from a branch → `gh-pages` / `(root)`** in the repository settings.
+- **`dev`** is where work lands. Pull requests target `dev`, and every push to it deploys to `https://rubnch.github.io/KSP_map/dev/` for testing.
+- **`main`** is the stable site at `https://rubnch.github.io/KSP_map/`. Promote by opening a PR from `dev` to `main`.
+- Every pull request also gets its own preview at `https://rubnch.github.io/KSP_map/pr-preview/pr-<number>/`, linked in a comment on the PR and deleted when it closes.
 
-- `main` deploys to the site root through `.github/workflows/deploy.yml`.
-- Every pull request gets a preview at `https://rubnch.github.io/KSP_map/pr-preview/pr-<number>/` through `.github/workflows/preview.yml`. The link is posted as a comment on the PR, updated on each push, and the preview is deleted when the PR is closed or merged.
+Everything is served from the `gh-pages` branch, so Pages is set once to **Deploy from a branch → `gh-pages` / `(root)`**. Workflows: `.github/workflows/deploy.yml` (main and dev) and `.github/workflows/preview.yml` (PRs).
