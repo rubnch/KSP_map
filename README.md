@@ -47,4 +47,7 @@ Every system, stock or modded, is one JSON file following `data/schema/system.sc
 
 ## Deployment
 
-`main` deploys to GitHub Pages through `.github/workflows/deploy.yml`. Pages must be enabled once in the repository settings with **Source: GitHub Actions**.
+Everything is served from the `gh-pages` branch, so Pages must be set once to **Deploy from a branch → `gh-pages` / `(root)`** in the repository settings.
+
+- `main` deploys to the site root through `.github/workflows/deploy.yml`.
+- Every pull request gets a preview at `https://rubnch.github.io/KSP_map/pr-preview/pr-<number>/` through `.github/workflows/preview.yml`. The link is posted as a comment on the PR, updated on each push, and the preview is deleted when the PR is closed or merged.
