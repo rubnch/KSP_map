@@ -1,12 +1,15 @@
 name: Deploy to GitHub Pages
 
-# Publishes main to the root of the gh-pages branch. PR previews live under
-# pr-preview/ on the same branch (see preview.yml) and are left untouched here.
-# Pages must be set to "Deploy from a branch: gh-pages / (root)".
+# Everything is served from the gh-pages branch
+# (Pages: "Deploy from a branch: gh-pages / (root)"):
+#   main -> site root         https://<owner>.github.io/<repo>/
+#   dev  -> dev/ subfolder    https://<owner>.github.io/<repo>/dev/
+#   PRs  -> pr-preview/pr-N/  (see preview.yml)
+# Each deploy only replaces its own folder.
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
@@ -27,9 +30,21 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: JamesIves/github-pages-deploy-action@v4
+      - name: Deploy main to the site root
+        if: github.ref_name == 'main'
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: dist
           branch: gh-pages
-          clean-exclude: pr-preview/
+          clean-exclude: |
+            pr-preview/
+            dev/
+          force: false
+      - name: Deploy dev to /dev/
+        if: github.ref_name == 'dev'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist
+          branch: gh-pages
+          target-folder: dev
           force: false
