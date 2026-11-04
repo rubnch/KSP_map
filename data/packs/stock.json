@@ -7,7 +7,7 @@
     "mod": "Kerbal Space Program",
     "version": "1.12.5",
     "url": "https://wiki.kerbalspaceprogram.com/wiki/Kerbol_System",
-    "notes": "Hand-entered from the KSP wiki; to be cross-checked against a kOS dump (tools/kos/dump-bodies.ks)."
+    "notes": "Hand-entered from the KSP wiki; to be cross-checked against a kOS dump (tools/kos/dump-bodies.ks). Ascent values for atmospheric bodies are the community delta-v map figures."
   },
   "calendar": {
     "dayLength": 21600,
@@ -54,6 +54,9 @@
         "argumentOfPeriapsis": 15,
         "meanAnomalyAtEpoch": 179.9087476711,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 20000
       }
     },
     {
@@ -82,6 +85,10 @@
         "argumentOfPeriapsis": 0,
         "meanAnomalyAtEpoch": 179.9087476711,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 100000,
+        "ascent": 8000
       }
     },
     {
@@ -105,6 +112,9 @@
         "argumentOfPeriapsis": 10,
         "meanAnomalyAtEpoch": 51.5662015618,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 10000
       }
     },
     {
@@ -133,6 +143,10 @@
         "argumentOfPeriapsis": 0,
         "meanAnomalyAtEpoch": 179.9087476711,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 80000,
+        "ascent": 3400
       }
     },
     {
@@ -157,6 +171,9 @@
         "argumentOfPeriapsis": 0,
         "meanAnomalyAtEpoch": 97.4028251722,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 14000
       }
     },
     {
@@ -180,6 +197,9 @@
         "argumentOfPeriapsis": 38,
         "meanAnomalyAtEpoch": 51.5662015618,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 10000
       }
     },
     {
@@ -208,6 +228,10 @@
         "argumentOfPeriapsis": 0,
         "meanAnomalyAtEpoch": 179.9087476711,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 60000,
+        "ascent": 1450
       }
     },
     {
@@ -232,6 +256,9 @@
         "argumentOfPeriapsis": 0,
         "meanAnomalyAtEpoch": 97.4028251722,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 15000
       }
     },
     {
@@ -255,6 +282,9 @@
         "argumentOfPeriapsis": 90,
         "meanAnomalyAtEpoch": 179.9087476711,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 12000
       }
     },
     {
@@ -283,6 +313,10 @@
         "argumentOfPeriapsis": 0,
         "meanAnomalyAtEpoch": 5.7295779513,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 210000,
+        "hasSurface": false
       }
     },
     {
@@ -312,6 +346,10 @@
         "argumentOfPeriapsis": 0,
         "meanAnomalyAtEpoch": 179.9087476711,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 60000,
+        "ascent": 2900
       }
     },
     {
@@ -336,6 +374,9 @@
         "argumentOfPeriapsis": 0,
         "meanAnomalyAtEpoch": 51.5662015618,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 15000
       }
     },
     {
@@ -360,6 +401,9 @@
         "argumentOfPeriapsis": 0,
         "meanAnomalyAtEpoch": 179.9087476711,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 15000
       }
     },
     {
@@ -384,6 +428,9 @@
         "argumentOfPeriapsis": 25,
         "meanAnomalyAtEpoch": 51.5662015618,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 30000
       }
     },
     {
@@ -408,6 +455,9 @@
         "argumentOfPeriapsis": 15,
         "meanAnomalyAtEpoch": 51.5662015618,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 10000
       }
     },
     {
@@ -431,6 +481,9 @@
         "argumentOfPeriapsis": 260,
         "meanAnomalyAtEpoch": 179.9087476711,
         "epoch": 0
+      },
+      "deltaV": {
+        "lowOrbitAltitude": 10000
       }
     }
   ]

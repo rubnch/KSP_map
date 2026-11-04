@@ -1,0 +1,260 @@
+import { useMemo, useState } from 'react';
+import { useMapStore } from '../state/store.ts';
+import { ascentCost, hasSurface, type AscentSource } from './physics.ts';
+import { DvGraph, edgeCost, findRoute, nodeLabel, type DvEdge, type DvNode, type DvOptions } from './graph.ts';
+import { layoutDvMap } from './layout.ts';
+import { useDvStore } from './store.ts';
+
+const COL = 124;
+const ROW = 52;
+const PAD_X = 28;
+const PAD_Y = 34;
+const NAME_W = 110;
+
+const x = (col: number) => PAD_X + col * COL;
+const y = (row: number) => PAD_Y + row * ROW;
+const fmt = (v: number) => Math.round(v).toLocaleString('en-US');
+
+const SOURCE_LABEL: Record<AscentSource, string> = {
+  override: 'your value',
+  pack: 'community',
+  computed: 'computed',
+  estimated: 'estimate',
+};
+
+function useDvGraph() {
+  const system = useMapStore((s) => s.system);
+  const overrides = useDvStore((s) => s.overrides);
+  const graph = useMemo(() => new DvGraph(system, overrides), [system, overrides]);
+  const layout = useMemo(() => layoutDvMap(graph), [graph]);
+  return { graph, layout };
+}
+
+function useOptions(): DvOptions {
+  const aerobrake = useDvStore((s) => s.aerobrake);
+  const planeChanges = useDvStore((s) => s.planeChanges);
+  return useMemo(() => ({ aerobrake, planeChanges }), [aerobrake, planeChanges]);
+}
+
+/** The delta-v map: a subway diagram generated from the loaded system, plus the route panel. */
+export function DeltaVView() {
+  const { graph, layout } = useDvGraph();
+  const options = useOptions();
+  const from = useDvStore((s) => s.from);
+  const to = useDvStore((s) => s.to);
+  const pick = useDvStore((s) => s.pick);
+  const route = useMemo(
+    () => (from && to && graph.nodes.has(from) && graph.nodes.has(to) ? findRoute(graph, from, to, options) : null),
+    [graph, from, to, options],
+  );
+  const onRoute = new Set(route?.edges.map((e) => e.id));
+  const width = x(layout.cols - 1) + NAME_W + PAD_X;
+  const height = y(layout.rows.length - 1) + PAD_Y;
+
+  const edgeLabel = (e: DvEdge, lx: number, ly: number) => {
+    const aero = options.aerobrake && e.aeroDv !== undefined;
+    const value = edgeCost(e, options);
+    return (
+      <g key={`l-${e.id}`} className="dv-edge-label">
+        <text x={lx} y={ly - 7} className={e.aeroDv !== undefined ? 'aero' : undefined}>
+          {fmt(value)}
+          {e.aeroDv !== undefined && <tspan className="aero-mark">{aero ? ' ✓A' : ' A'}</tspan>}
+          <title>
+            {e.aeroDv !== undefined
+              ? `Aerobraking possible: ${fmt(e.dv)} m/s powered, ${fmt(e.aeroDv)} m/s with aerobraking`
+              : `${fmt(e.dv)} m/s`}
+            {e.source ? ` (${SOURCE_LABEL[e.source]})` : ''}
+          </title>
+        </text>
+        {e.plane !== undefined && e.plane >= 5 && !options.planeChanges && (
+          <text x={lx} y={ly + 13} className="plane">
+            +{fmt(e.plane)} plane
+          </text>
+        )}
+      </g>
+    );
+  };
+
+  return (
+    <div className="dv-view">
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Delta-v map">
+        {/* Connectors between rows, then in-row segments. */}
+        {layout.edges.map((e) => {
+          const a = layout.nodes.get(e.from)!;
+          const b = layout.nodes.get(e.to)!;
+          // Colour by the row a line leaves from, so shared vertical trunks keep one colour.
+          const color = graph.node(e.from).body.data.style.color;
+          const d = a.row === b.row ? `M${x(a.col)},${y(a.row)} H${x(b.col)}` : `M${x(a.col)},${y(a.row)} V${y(b.row)} H${x(b.col)}`;
+          return (
+            <path
+              key={e.id}
+              d={d}
+              className={`dv-line${onRoute.has(e.id) ? ' on-route' : ''}`}
+              style={{ stroke: onRoute.has(e.id) ? undefined : color }}
+            />
+          );
+        })}
+        {layout.edges.map((e) => {
+          const a = layout.nodes.get(e.from)!;
+          const b = layout.nodes.get(e.to)!;
+          return edgeLabel(e, (x(a.col) + x(b.col)) / 2, y(b.row));
+        })}
+        {layout.rows.map((r) => {
+          const last = r.nodes[r.nodes.length - 1]!;
+          return (
+            <text key={`n-${r.body.id}`} x={x(last.col) + 16} y={y(r.row) + 4} className="dv-body-name">
+              {r.body.name}
+            </text>
+          );
+        })}
+        {[...layout.nodes.values()].map((n) => {
+          const node = graph.node(n.id);
+          const state = n.id === from ? ' from' : n.id === to ? ' to' : route?.nodes.includes(n.id) ? ' via' : '';
+          return (
+            <g
+              key={n.id}
+              className={`dv-node${state}`}
+              transform={`translate(${x(n.col)},${y(n.row)})`}
+              onClick={() => pick(n.id)}
+              role="button"
+              tabIndex={0}
+              aria-label={nodeLabel(node)}
+              onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && pick(n.id)}
+            >
+              <circle r={13} className="hit" />
+              <circle r={node.kind === 'surface' ? 7 : 5.5} style={{ fill: node.body.data.style.color }} />
+              <text y={20}>{shortLabel(node)}</text>
+              <title>{nodeLabel(node)}</title>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function shortLabel(n: DvNode): string {
+  switch (n.kind) {
+    case 'surface':
+      return 'Surface';
+    case 'low':
+      return 'Low orbit';
+    case 'capture':
+      return 'Capture';
+    case 'intercept':
+      return 'Intercept';
+  }
+}
+
+/** Route total and legs, options, and the editable ascent / landing values. */
+export function DvPanel() {
+  const { graph } = useDvGraph();
+  const options = useOptions();
+  const { from, to, swap, clear, setAerobrake, setPlaneChanges } = useDvStore();
+  const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > 720);
+  const route = from && to && graph.nodes.has(from) && graph.nodes.has(to) ? findRoute(graph, from, to, options) : null;
+  const showOnMap = () => {
+    const target = to ?? from;
+    if (!target) return;
+    const s = useMapStore.getState();
+    s.setFocus(graph.node(target).body.id);
+    s.setPage('map');
+  };
+
+  return (
+    <aside className="panel info-panel dv-panel" aria-label="Delta-v route">
+      <header onClick={() => setOpen(!open)} aria-expanded={open} role="button" tabIndex={0}>
+        <span className="dot" style={{ background: 'var(--accent)' }} />
+        <h2>{route ? `${fmt(route.total)} m/s` : 'Δv route'}</h2>
+        <span className="chevron">{open ? '▾' : '▸'}</span>
+        <span className="kind">
+          {!from
+            ? 'Click a node to start a route'
+            : !to
+              ? `From ${nodeLabel(graph.node(from))}: pick a destination`
+              : `${nodeLabel(graph.node(from))} → ${nodeLabel(graph.node(to))}`}
+        </span>
+      </header>
+      {open && (
+        <>
+          {route && (
+            <ol className="dv-legs">
+              {route.edges.map((e) => (
+                <li key={e.id}>
+                  <span>{nodeLabel(graph.node(e.to))}</span>
+                  <span className="num">{fmt(edgeCost(e, options))}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+          {from && (
+            <div className="dv-actions">
+              <button onClick={swap} disabled={!to}>
+                Swap
+              </button>
+              <button onClick={clear}>Clear</button>
+              <button onClick={showOnMap}>Show on map</button>
+            </div>
+          )}
+          <label className="dv-toggle">
+            <input type="checkbox" checked={options.aerobrake} onChange={(e) => setAerobrake(e.target.checked)} />
+            Aerobrake where there is an atmosphere (A)
+          </label>
+          <label className="dv-toggle">
+            <input type="checkbox" checked={options.planeChanges} onChange={(e) => setPlaneChanges(e.target.checked)} />
+            Include plane changes (worst case, at the slowest point)
+          </label>
+          <AscentTable graph={graph} />
+          <p className="dv-note">
+            Generated from the system data with Hohmann transfers between circular orbits; expect a few percent off
+            in-game. Capture nodes are orbits with periapsis at low orbit and apoapsis at the edge of the sphere of
+            influence.
+          </p>
+        </>
+      )}
+    </aside>
+  );
+}
+
+function AscentTable({ graph }: { graph: DvGraph }) {
+  const overrides = useDvStore((s) => s.overrides);
+  const setOverride = useDvStore((s) => s.setOverride);
+  const [open, setOpen] = useState(false);
+  const bodies = graph.system.bodies.filter((b) => b.parent && hasSurface(b));
+  return (
+    <section className="dv-ascent">
+      <button className="panel-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
+        {open ? 'Landing and ascent ▾' : 'Landing and ascent ▸'}
+      </button>
+      {open && (
+        <table>
+          <tbody>
+            {bodies.map((b) => {
+              const base = ascentCost(b);
+              const current = ascentCost(b, overrides[b.id]);
+              return (
+                <tr key={b.id}>
+                  <th>
+                    <span className="dot" style={{ background: b.data.style.color }} /> {b.name}
+                  </th>
+                  <td>
+                    <input
+                      type="number"
+                      min={0}
+                      step={10}
+                      aria-label={`${b.name} ascent, m/s`}
+                      placeholder={fmt(base.value)}
+                      value={overrides[b.id] ?? ''}
+                      onChange={(e) => setOverride(b.id, e.target.value === '' ? null : Number(e.target.value))}
+                    />
+                  </td>
+                  <td className={`src src-${current.source}`}>{SOURCE_LABEL[current.source]}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}

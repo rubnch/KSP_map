@@ -16,6 +16,10 @@ An interactive, browser-based map of Kerbal Space Program planetary systems: nav
 | Top-down view | 2D button |
 | Set the date | Click the clock |
 
+### Delta-v map
+
+The **Δv map** button switches to a delta-v map generated from the loaded system (`?view=dv`). Each body is a row: intercept → capture (periapsis at low orbit, apoapsis at the SOI edge) → low orbit → surface. Click one node, then another, to sum the cheapest route between them; the panel lists each leg. Toggles add aerobraking (edges marked **A**) and worst-case plane changes. Transfers are Hohmann between circular orbits at each body's semi-major axis, with the Oberth effect on ejection and capture. Ascent costs for atmospheric bodies come from the pack (community values for stock), are estimated for packs without them, and can be overridden per body under *Landing and ascent* (saved in the browser). Packs can tune the map with an optional `deltaV` block per body: `lowOrbitAltitude`, `ascent` and `hasSurface`.
+
 Hovering a body shows its sphere of influence. The focused body's orbit shows Ap/Pe and AN/DN markers. The URL keeps the focused body (`?focus=Duna`) and accepts `?ut=` in seconds.
 
 ## Development
@@ -36,6 +40,7 @@ npm run build      # static site in dist/
 | --- | --- |
 | `src/core/` | Orbit maths and data types. No UI code. |
 | `src/map/` | The 3D / top-down map view (react-three-fiber). |
+| `src/dv/` | Delta-v graph, route search, subway layout and the Δv map view. |
 | `src/ui/` | Panels and controls around the map. |
 | `data/packs/*.json` | One system per file in the unified format. |
 | `data/schema/system.schema.json` | JSON Schema every pack is validated against in the tests. |

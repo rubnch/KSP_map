@@ -1,0 +1,119 @@
+import { describe, expect, it } from 'vitest';
+import stock from '../../data/packs/stock.json';
+import { PlanetarySystem, type SystemPack } from '../core/index.ts';
+import { ascentCost, DvGraph, findRoute, layoutDvMap, vacuumAscent, type DvOptions } from './index.ts';
+
+const system = new PlanetarySystem(stock as SystemPack);
+const g = new DvGraph(system);
+const plain: DvOptions = { aerobrake: false, planeChanges: false };
+const cost = (from: string, to: string, o = plain) => findRoute(g, from, to, o)!.total;
+/** Within `pct` percent of a community delta-v map figure. */
+const near = (value: number, community: number, pct = 5) =>
+  expect(Math.abs(value - community) / community).toBeLessThan(pct / 100);
+
+describe('ascent', () => {
+  it('matches community values for airless moons', () => {
+    near(vacuumAscent(system.get('Mun')), 580);
+    near(vacuumAscent(system.get('Minmus')), 180);
+    near(vacuumAscent(system.get('Tylo')), 2270);
+  });
+
+  it('uses pack values, then overrides', () => {
+    expect(ascentCost(system.get('Kerbin'))).toEqual({ value: 3400, source: 'pack' });
+    expect(ascentCost(system.get('Kerbin'), 3200)).toEqual({ value: 3200, source: 'override' });
+    expect(ascentCost(system.get('Mun')).source).toBe('computed');
+  });
+
+  it('estimates atmospheric ascent close to the community figures when the pack has none', () => {
+    for (const [id, community] of [['Kerbin', 3400], ['Eve', 8000], ['Duna', 1450], ['Laythe', 2900]] as const) {
+      const b = system.get(id);
+      const bare = { ...b, data: { ...b.data, deltaV: { ...b.data.deltaV, ascent: undefined } } };
+      const est = ascentCost(bare);
+      expect(est.source).toBe('estimated');
+      near(est.value, community, 6);
+    }
+  });
+});
+
+describe('transfers from low Kerbin orbit', () => {
+  it('reaches the Mun like the community map (860 + 310)', () => {
+    near(cost('Kerbin:low', 'Mun:intercept:Kerbin'), 860);
+    near(cost('Mun:intercept:Kerbin', 'Mun:low'), 310);
+  });
+
+  it('escapes Kerbin for 950', () => near(cost('Kerbin:low', 'Kerbin:capture'), 950));
+
+  it('ejects to Duna and Jool with the Oberth effect', () => {
+    near(cost('Kerbin:low', 'Duna:intercept:Kerbin'), 950 + 130);
+    near(cost('Kerbin:low', 'Jool:intercept:Kerbin'), 950 + 980);
+  });
+
+  it('captures at Jool and transfers to Laythe like the community map', () => {
+    near(cost('Jool:intercept:Kerbin', 'Jool:capture'), 160, 8);
+    near(cost('Jool:capture', 'Laythe:intercept:Jool'), 930);
+    near(cost('Laythe:intercept:Jool', 'Laythe:low'), 1070);
+  });
+
+  it('lands on the Mun from Kerbin surface for about 5150', () => {
+    near(cost('Kerbin:surface', 'Mun:surface'), 3400 + 860 + 310 + 580);
+  });
+});
+
+describe('aerobraking', () => {
+  it('makes Duna capture and landing nearly free', () => {
+    const aero = { aerobrake: true, planeChanges: false };
+    expect(cost('Duna:intercept:Kerbin', 'Duna:surface', aero)).toBeLessThan(60);
+    expect(cost('Duna:intercept:Kerbin', 'Duna:surface')).toBeGreaterThan(1450);
+  });
+
+  it('never discounts ascent', () => {
+    expect(cost('Kerbin:surface', 'Kerbin:low', { aerobrake: true, planeChanges: false })).toBe(3400);
+  });
+});
+
+describe('plane changes', () => {
+  it('only count when asked, and are larger for inclined targets', () => {
+    const withPlane = { aerobrake: false, planeChanges: true };
+    const moho = cost('Kerbin:capture', 'Moho:intercept:Kerbin', withPlane) - cost('Kerbin:capture', 'Moho:intercept:Kerbin');
+    const duna = cost('Kerbin:capture', 'Duna:intercept:Kerbin', withPlane) - cost('Kerbin:capture', 'Duna:intercept:Kerbin');
+    expect(moho).toBeGreaterThan(500);
+    expect(duna).toBeLessThan(20);
+  });
+});
+
+describe('routes', () => {
+  it('goes between any two bodies, not only from home', () => {
+    const r = findRoute(g, 'Duna:low', 'Eve:low', plain)!;
+    expect(r.nodes).toContain('Eve:intercept:Duna');
+    expect(r.total).toBeGreaterThan(0);
+  });
+
+  it('gets home from the Mun', () => {
+    const r = findRoute(g, 'Mun:surface', 'Kerbin:surface', { aerobrake: true, planeChanges: false })!;
+    expect(r.nodes).toContain('Kerbin:intercept:Mun');
+    near(r.total, 580 + 310, 10);
+  });
+});
+
+describe('layout', () => {
+  const layout = layoutDvMap(g);
+
+  it('has one row per non-root body, home first', () => {
+    expect(layout.rows.length).toBe(system.bodies.length - 1);
+    expect(layout.rows[0]!.body.id).toBe('Kerbin');
+  });
+
+  it('hangs Jool moons off the Jool capture node and the Mun off low Kerbin orbit', () => {
+    const row = (id: string) => layout.rows.find((r) => r.body.id === id)!;
+    expect(row('Laythe').attach!.from).toBe('Jool:capture');
+    expect(row('Mun').attach!.from).toBe('Kerbin:low');
+    expect(row('Duna').attach!.from).toBe('Kerbin:capture');
+  });
+
+  it('draws every edge between placed nodes', () => {
+    for (const e of layout.edges) {
+      expect(layout.nodes.has(e.from)).toBe(true);
+      expect(layout.nodes.has(e.to)).toBe(true);
+    }
+  });
+});
