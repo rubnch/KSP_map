@@ -70,7 +70,8 @@ describe.skipIf(!dumpPath)('pack matches kOS dump', () => {
     expect(rel(o.semiMajorAxis, k.semiMajorAxis)).toBeLessThan(1e-6);
     expect(o.eccentricity).toBeCloseTo(k.eccentricity!, 6);
     expect(angleDiff(o.inclination, k.inclination!)).toBeLessThan(1e-4);
-    if (o.inclination > 0) expect(angleDiff(o.longitudeOfAscendingNode, k.longitudeOfAscendingNode!)).toBeLessThan(1e-3);
+    if (o.inclination > 0)
+      expect(angleDiff(o.longitudeOfAscendingNode, k.longitudeOfAscendingNode!)).toBeLessThan(1e-3);
     if (o.eccentricity > 0) expect(angleDiff(o.argumentOfPeriapsis, k.argumentOfPeriapsis!)).toBeLessThan(1e-3);
     // Compare mean anomaly at a common UT, since the epochs may differ.
     const ut = dump.ut as unknown as number;

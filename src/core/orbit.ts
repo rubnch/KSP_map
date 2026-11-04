@@ -44,9 +44,12 @@ export class Orbit {
     this.n = Math.sqrt(mu / (this.a * this.a * this.a));
     this.period = (2 * Math.PI) / this.n;
 
-    const cO = Math.cos(this.lan), sO = Math.sin(this.lan);
-    const ci = Math.cos(this.i), si = Math.sin(this.i);
-    const cw = Math.cos(this.argPe), sw = Math.sin(this.argPe);
+    const cO = Math.cos(this.lan),
+      sO = Math.sin(this.lan);
+    const ci = Math.cos(this.i),
+      si = Math.sin(this.i);
+    const cw = Math.cos(this.argPe),
+      sw = Math.sin(this.argPe);
     this.P = [cO * cw - sO * sw * ci, sO * cw + cO * sw * ci, sw * si];
     this.Q = [-cO * sw - sO * cw * ci, -sO * sw + cO * cw * ci, cw * si];
     this.normal = [sO * si, -cO * si, ci];
@@ -86,7 +89,8 @@ export class Orbit {
   /** Position and velocity relative to the parent at UT `t`. */
   stateAt(t: number): StateVector {
     const E = this.eccentricAnomalyAt(t);
-    const cE = Math.cos(E), sE = Math.sin(E);
+    const cE = Math.cos(E),
+      sE = Math.sin(E);
     const b = Math.sqrt(1 - this.e * this.e);
     const r = this.a * (1 - this.e * cE);
     const x = this.a * (cE - this.e);
