@@ -1,17 +1,22 @@
-import { Canvas } from '@react-three/fiber';
+import { MapView } from './map/MapView.tsx';
+import { BodyList } from './ui/BodyList.tsx';
+import { InfoPanel } from './ui/InfoPanel.tsx';
+import { TimeControls } from './ui/TimeControls.tsx';
+import { KeyHints, Toolbar } from './ui/Toolbar.tsx';
+import { useKeyboard } from './ui/useKeyboard.ts';
 
 export default function App() {
+  useKeyboard();
   return (
     <div className="app">
-      <Canvas camera={{ position: [0, 2, 5] }}>
-        <ambientLight intensity={0.2} />
-        <pointLight position={[5, 3, 5]} intensity={60} />
-        <mesh>
-          <sphereGeometry args={[1, 48, 24]} />
-          <meshStandardMaterial color="#4a7fd4" />
-        </mesh>
-      </Canvas>
-      <div className="placeholder">KSP Map: scaffold</div>
+      <MapView />
+      <div className="hud">
+        <Toolbar />
+        <BodyList />
+        <InfoPanel />
+        <TimeControls />
+        <KeyHints />
+      </div>
     </div>
   );
 }

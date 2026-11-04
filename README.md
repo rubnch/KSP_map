@@ -2,6 +2,22 @@
 
 An interactive, browser-based map of Kerbal Space Program planetary systems: navigate like the in-game map view, read a delta-v map generated from the actual system, and browse a timeline of optimal transfer windows. Stock first, then popular planet packs (OPM, JNSQ, RSS, Kcalbeloh).
 
+## Map controls
+
+| Action | Control |
+| --- | --- |
+| Orbit the camera | Drag (one finger on touch) |
+| Zoom | Scroll wheel (pinch on touch) |
+| Focus a body | Double-click it, click its label, or pick it in the body list |
+| Cycle focus | Tab / Shift+Tab |
+| Back to the home world | Backspace |
+| Time warp | `.` faster, `,` slower, `/` back to 1× |
+| Pause | P |
+| Top-down view | 2D button |
+| Set the date | Click the clock |
+
+Hovering a body shows its sphere of influence. The focused body's orbit shows Ap/Pe and AN/DN markers. The URL keeps the focused body (`?focus=Duna`) and accepts `?ut=` in seconds.
+
 ## Development
 
 Requires Node 22.
