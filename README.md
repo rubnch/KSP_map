@@ -47,8 +47,7 @@ Every system, stock or modded, is one JSON file following `data/schema/system.sc
 
 ## Branches and deployment
 
-- **`dev`** is where work lands. Pull requests target `dev`, and every push to it deploys to `https://rubnch.github.io/KSP_map/dev/` for testing.
+- **`dev`** is where work lands. Pull requests target `dev`, and it is published at `https://rubnch.github.io/KSP_map/dev/` for testing.
 - **`main`** is the stable site at `https://rubnch.github.io/KSP_map/`. Promote by opening a PR from `dev` to `main`.
-- Every pull request also gets its own preview at `https://rubnch.github.io/KSP_map/pr-preview/pr-<number>/`, linked in a comment on the PR and deleted when it closes.
 
-Everything is served from the `gh-pages` branch, so Pages is set once to **Deploy from a branch → `gh-pages` / `(root)`**. Workflows: `.github/workflows/deploy.yml` (main and dev) and `.github/workflows/preview.yml` (PRs).
+Pages uses **Source: GitHub Actions**. `.github/workflows/deploy.yml` runs on every push to `main` or `dev`, builds both branches, and publishes them together (main at the root, dev under `/dev/`).
