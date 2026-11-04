@@ -51,4 +51,10 @@ Every system, stock or modded, is one JSON file following `data/schema/system.sc
 - **`main`** is the stable site at `https://rubnch.github.io/KSP_map/`. Promote by opening a PR from `dev` to `main`.
 - Every pull request also gets its own preview at `https://rubnch.github.io/KSP_map/pr-preview/pr-<number>/`, linked in a comment on the PR and deleted when it closes.
 
-Everything is served from the `gh-pages` branch, so Pages is set once to **Deploy from a branch → `gh-pages` / `(root)`**. Workflows: `.github/workflows/deploy.yml` (main and dev) and `.github/workflows/preview.yml` (PRs).
+Everything is served from the `gh-pages` branch, so Pages is set once to **Deploy from a branch → `gh-pages` / `(root)`**. Workflows:
+
+| File | Runs on | Does |
+| --- | --- | --- |
+| `ci.yml` | every PR, pushes to `main` and `dev` | typecheck, tests, build |
+| `deploy.yml` | pushes to `main` and `dev` | publishes `main` to the root and `dev` to `/dev/` |
+| `preview.yml` | PR opened, updated or closed | publishes or removes `/pr-preview/pr-<number>/` |
