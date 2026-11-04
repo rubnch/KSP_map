@@ -1,0 +1,106 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/rubnch/KSP_map/data/schema/system.schema.json",
+  "title": "KSP map system pack",
+  "description": "One planetary system (stock or a mod pack) in the unified format. Units: metres, seconds, m^3/s^2. All angles are in degrees.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "name", "source", "calendar", "rootBody", "homeBody", "bodies"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "name": { "type": "string", "minLength": 1 },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mod", "version"],
+      "properties": {
+        "mod": { "type": "string", "description": "Mod or game the data comes from" },
+        "version": { "type": "string", "description": "Pinned version the data was generated from" },
+        "url": { "type": "string" },
+        "license": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    },
+    "extends": {
+      "type": "string",
+      "description": "Id of the pack this one is overlaid on (for packs that add bodies to stock)"
+    },
+    "calendar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dayLength", "yearLength"],
+      "properties": {
+        "dayLength": { "type": "number", "exclusiveMinimum": 0, "description": "Calendar day, seconds" },
+        "yearLength": { "type": "number", "exclusiveMinimum": 0, "description": "Calendar year, seconds" }
+      }
+    },
+    "rootBody": { "type": "string" },
+    "homeBody": { "type": "string" },
+    "bodies": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/body" }
+    }
+  },
+  "definitions": {
+    "body": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "parent", "kind", "physical", "style"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+        "name": { "type": "string" },
+        "parent": { "type": ["string", "null"] },
+        "kind": { "enum": ["star", "planet", "dwarf", "moon"] },
+        "physical": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["radius", "gravParameter", "rotationPeriod"],
+          "properties": {
+            "radius": { "type": "number", "exclusiveMinimum": 0 },
+            "gravParameter": { "type": "number", "exclusiveMinimum": 0 },
+            "rotationPeriod": { "type": "number", "description": "Sidereal rotation period, seconds" },
+            "tidallyLocked": { "type": "boolean" },
+            "initialRotation": { "type": "number", "description": "Rotation angle at UT 0, degrees" },
+            "soi": { "type": "number", "exclusiveMinimum": 0, "description": "Sphere of influence radius; derived from the orbit if absent" },
+            "atmosphere": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["height"],
+              "properties": {
+                "height": { "type": "number", "exclusiveMinimum": 0 },
+                "hasOxygen": { "type": "boolean" },
+                "seaLevelPressure": { "type": "number", "minimum": 0, "description": "kPa" }
+              }
+            }
+          }
+        },
+        "orbit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["semiMajorAxis", "eccentricity", "inclination", "longitudeOfAscendingNode", "argumentOfPeriapsis", "meanAnomalyAtEpoch", "epoch"],
+          "properties": {
+            "semiMajorAxis": { "type": "number", "exclusiveMinimum": 0 },
+            "eccentricity": { "type": "number", "minimum": 0, "exclusiveMaximum": 1 },
+            "inclination": { "type": "number" },
+            "longitudeOfAscendingNode": { "type": "number" },
+            "argumentOfPeriapsis": { "type": "number" },
+            "meanAnomalyAtEpoch": { "type": "number" },
+            "epoch": { "type": "number", "description": "UT, seconds" }
+          }
+        },
+        "style": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["color"],
+          "properties": {
+            "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+            "orbitColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+          }
+        }
+      }
+    }
+  }
+}
