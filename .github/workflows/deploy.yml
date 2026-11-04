@@ -1,9 +1,11 @@
 name: Deploy to GitHub Pages
 
-# Pages source: "GitHub Actions" (no gh-pages branch).
-# Every push to main or dev rebuilds both branches into one site:
-#   main -> https://<owner>.github.io/<repo>/
-#   dev  -> https://<owner>.github.io/<repo>/dev/
+# Everything is served from the gh-pages branch
+# (Pages: "Deploy from a branch: gh-pages / (root)"):
+#   main -> site root         https://<owner>.github.io/<repo>/
+#   dev  -> dev/ subfolder    https://<owner>.github.io/<repo>/dev/
+#   PRs  -> pr-preview/pr-N/  (see preview.yml)
+# Each deploy only replaces its own folder.
 
 on:
   push:
@@ -11,61 +13,38 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: pages-deploy
+  cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Build main
-        uses: actions/checkout@v4
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Deploy main to the site root
+        if: github.ref_name == 'main'
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          ref: main
-          path: main
-      - run: npm ci && npm run build
-        working-directory: main
-
-      - name: Check whether dev exists
-        id: dev
-        run: |
-          if git ls-remote --exit-code --heads "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" dev >/dev/null; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Build dev
-        if: steps.dev.outputs.exists == 'true'
-        uses: actions/checkout@v4
+          folder: dist
+          branch: gh-pages
+          clean-exclude: |
+            pr-preview/
+            dev/
+          force: false
+      - name: Deploy dev to /dev/
+        if: github.ref_name == 'dev'
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          ref: dev
-          path: dev
-      - if: steps.dev.outputs.exists == 'true'
-        run: npm ci && npm run build
-        working-directory: dev
-
-      - name: Assemble site
-        run: |
-          mkdir site
-          cp -r main/dist/. site/
-          if [ -d dev/dist ]; then mkdir site/dev && cp -r dev/dist/. site/dev/; fi
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          folder: dist
+          branch: gh-pages
+          target-folder: dev
+          force: false
