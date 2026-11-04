@@ -65,6 +65,11 @@ export function SystemScene() {
     const rel = new Map<string, Vec3>();
     for (const b of system.bodies) rel.set(b.id, sub(abs.get(b.id)!, origin));
 
+    // OrbitControls has already moved the camera this frame (it runs at priority -1), but its
+    // matrices are only refreshed at render time. Refresh them now so labels track the camera
+    // in the same frame instead of one frame behind.
+    camera.updateMatrixWorld();
+
     const fovScale = camera instanceof THREE.PerspectiveCamera ? Math.tan((camera.fov * Math.PI) / 360) : 1;
     const project = (v: Vec3, radius = 0): ScreenPoint => {
       writeThree(v, scratch);

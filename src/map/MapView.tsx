@@ -27,7 +27,7 @@ export function MapView() {
 
 /**
  * Orbit controls around the focused body (always at the origin), log-feel zoom from low orbit
- * to the whole system, eased re-framing when the focus changes, and the top-down 2D lock.
+ * to the whole system, zoom kept across focus changes, and the top-down 2D lock.
  */
 function CameraRig() {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
@@ -47,14 +47,16 @@ function CameraRig() {
   useEffect(() => {
     const d = focus.children.length ? system.extent(focus) * 1.6 : focus.radius * 8;
     camera.position.setLength(d * SCALE);
-    // Only on mount: later focus changes are handled by the eased re-framing below.
+    // Only on mount: later focus changes keep the current distance.
   }, []);
 
-  // Re-frame on focus change, like double-clicking a body in the game.
+  // Keep the zoom distance when the focus changes; only back off if the camera would end up
+  // inside (or right on top of) the newly focused body.
   useEffect(() => {
     if (focusSerial === 0) return;
-    targetDistance.current = focus.radius * SCALE * 6;
-  }, [focusSerial, focus]);
+    const safe = focus.radius * SCALE * 3;
+    targetDistance.current = camera.position.length() < safe ? safe : null;
+  }, [focusSerial, focus, camera]);
 
   // 2D: look straight down on the reference plane. 3D: restore the previous angle.
   useEffect(() => {
@@ -69,7 +71,7 @@ function CameraRig() {
     controls.current?.update();
   }, [viewMode, camera]);
 
-  // Any manual zoom or drag cancels the eased re-framing.
+  // Any manual zoom or drag cancels an eased back-off.
   const gl = useThree((s) => s.gl);
   useEffect(() => {
     const cancel = () => (targetDistance.current = null);
@@ -90,7 +92,7 @@ function CameraRig() {
     const next = Math.exp(Math.log(current) + (Math.log(target) - Math.log(current)) * k);
     camera.position.setLength(next);
     if (Math.abs(Math.log(next / target)) < 1e-3) targetDistance.current = null;
-  });
+  }, -2); // before OrbitControls (-1) and the scene loop (0), so everything sees the final camera
 
   return (
     <OrbitControls
