@@ -1,0 +1,437 @@
+{
+  "$schema": "../schema/system.schema.json",
+  "schemaVersion": 1,
+  "id": "stock",
+  "name": "Stock (Kerbol system)",
+  "source": {
+    "mod": "Kerbal Space Program",
+    "version": "1.12.5",
+    "url": "https://wiki.kerbalspaceprogram.com/wiki/Kerbol_System",
+    "notes": "Hand-entered from the KSP wiki; to be cross-checked against a kOS dump (tools/kos/dump-bodies.ks)."
+  },
+  "calendar": {
+    "dayLength": 21600,
+    "yearLength": 9201600
+  },
+  "rootBody": "Kerbol",
+  "homeBody": "Kerbin",
+  "bodies": [
+    {
+      "id": "Kerbol",
+      "name": "Kerbol",
+      "parent": null,
+      "kind": "star",
+      "physical": {
+        "radius": 261600000,
+        "gravParameter": 1.1723328e+18,
+        "rotationPeriod": 432000,
+        "atmosphere": {
+          "height": 600000
+        }
+      },
+      "style": {
+        "color": "#ffd35c"
+      }
+    },
+    {
+      "id": "Moho",
+      "name": "Moho",
+      "parent": "Kerbol",
+      "kind": "planet",
+      "physical": {
+        "radius": 250000,
+        "gravParameter": 168609380000.0,
+        "rotationPeriod": 1210000
+      },
+      "style": {
+        "color": "#9c7b64"
+      },
+      "orbit": {
+        "semiMajorAxis": 5263138304,
+        "eccentricity": 0.2,
+        "inclination": 7,
+        "longitudeOfAscendingNode": 70,
+        "argumentOfPeriapsis": 15,
+        "meanAnomalyAtEpoch": 179.9087476711,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Eve",
+      "name": "Eve",
+      "parent": "Kerbol",
+      "kind": "planet",
+      "physical": {
+        "radius": 700000,
+        "gravParameter": 8171730200000.0,
+        "rotationPeriod": 80500,
+        "atmosphere": {
+          "height": 90000,
+          "hasOxygen": false,
+          "seaLevelPressure": 506.625
+        }
+      },
+      "style": {
+        "color": "#8a4fc7"
+      },
+      "orbit": {
+        "semiMajorAxis": 9832684544,
+        "eccentricity": 0.01,
+        "inclination": 2.1,
+        "longitudeOfAscendingNode": 15,
+        "argumentOfPeriapsis": 0,
+        "meanAnomalyAtEpoch": 179.9087476711,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Gilly",
+      "name": "Gilly",
+      "parent": "Eve",
+      "kind": "moon",
+      "physical": {
+        "radius": 13000,
+        "gravParameter": 8289449.8,
+        "rotationPeriod": 28255
+      },
+      "style": {
+        "color": "#a8917a"
+      },
+      "orbit": {
+        "semiMajorAxis": 31500000,
+        "eccentricity": 0.55,
+        "inclination": 12,
+        "longitudeOfAscendingNode": 80,
+        "argumentOfPeriapsis": 10,
+        "meanAnomalyAtEpoch": 51.5662015618,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Kerbin",
+      "name": "Kerbin",
+      "parent": "Kerbol",
+      "kind": "planet",
+      "physical": {
+        "radius": 600000,
+        "gravParameter": 3531600000000.0,
+        "rotationPeriod": 21549.425,
+        "atmosphere": {
+          "height": 70000,
+          "hasOxygen": true,
+          "seaLevelPressure": 101.325
+        }
+      },
+      "style": {
+        "color": "#3f7fd0"
+      },
+      "orbit": {
+        "semiMajorAxis": 13599840256,
+        "eccentricity": 0,
+        "inclination": 0,
+        "longitudeOfAscendingNode": 0,
+        "argumentOfPeriapsis": 0,
+        "meanAnomalyAtEpoch": 179.9087476711,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Mun",
+      "name": "Mun",
+      "parent": "Kerbin",
+      "kind": "moon",
+      "physical": {
+        "radius": 200000,
+        "gravParameter": 65138398000.0,
+        "rotationPeriod": 138984.38,
+        "tidallyLocked": true
+      },
+      "style": {
+        "color": "#9a9a9a"
+      },
+      "orbit": {
+        "semiMajorAxis": 12000000,
+        "eccentricity": 0,
+        "inclination": 0,
+        "longitudeOfAscendingNode": 0,
+        "argumentOfPeriapsis": 0,
+        "meanAnomalyAtEpoch": 97.4028251722,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Minmus",
+      "name": "Minmus",
+      "parent": "Kerbin",
+      "kind": "moon",
+      "physical": {
+        "radius": 60000,
+        "gravParameter": 1765800000.0,
+        "rotationPeriod": 40400
+      },
+      "style": {
+        "color": "#b6e3d0"
+      },
+      "orbit": {
+        "semiMajorAxis": 47000000,
+        "eccentricity": 0,
+        "inclination": 6,
+        "longitudeOfAscendingNode": 78,
+        "argumentOfPeriapsis": 38,
+        "meanAnomalyAtEpoch": 51.5662015618,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Duna",
+      "name": "Duna",
+      "parent": "Kerbol",
+      "kind": "planet",
+      "physical": {
+        "radius": 320000,
+        "gravParameter": 301363210000.0,
+        "rotationPeriod": 65517.859,
+        "atmosphere": {
+          "height": 50000,
+          "hasOxygen": false,
+          "seaLevelPressure": 6.755
+        }
+      },
+      "style": {
+        "color": "#c4552b"
+      },
+      "orbit": {
+        "semiMajorAxis": 20726155264,
+        "eccentricity": 0.051,
+        "inclination": 0.06,
+        "longitudeOfAscendingNode": 135.5,
+        "argumentOfPeriapsis": 0,
+        "meanAnomalyAtEpoch": 179.9087476711,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Ike",
+      "name": "Ike",
+      "parent": "Duna",
+      "kind": "moon",
+      "physical": {
+        "radius": 130000,
+        "gravParameter": 18568369000.0,
+        "rotationPeriod": 65517.862,
+        "tidallyLocked": true
+      },
+      "style": {
+        "color": "#7c7c7c"
+      },
+      "orbit": {
+        "semiMajorAxis": 3200000,
+        "eccentricity": 0.03,
+        "inclination": 0.2,
+        "longitudeOfAscendingNode": 0,
+        "argumentOfPeriapsis": 0,
+        "meanAnomalyAtEpoch": 97.4028251722,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Dres",
+      "name": "Dres",
+      "parent": "Kerbol",
+      "kind": "dwarf",
+      "physical": {
+        "radius": 138000,
+        "gravParameter": 21484489000.0,
+        "rotationPeriod": 34800
+      },
+      "style": {
+        "color": "#8c867e"
+      },
+      "orbit": {
+        "semiMajorAxis": 40839348203,
+        "eccentricity": 0.145,
+        "inclination": 5,
+        "longitudeOfAscendingNode": 280,
+        "argumentOfPeriapsis": 90,
+        "meanAnomalyAtEpoch": 179.9087476711,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Jool",
+      "name": "Jool",
+      "parent": "Kerbol",
+      "kind": "planet",
+      "physical": {
+        "radius": 6000000,
+        "gravParameter": 282528000000000.0,
+        "rotationPeriod": 36000,
+        "atmosphere": {
+          "height": 200000,
+          "hasOxygen": false,
+          "seaLevelPressure": 1519.875
+        }
+      },
+      "style": {
+        "color": "#6fae3c"
+      },
+      "orbit": {
+        "semiMajorAxis": 68773560320,
+        "eccentricity": 0.05,
+        "inclination": 1.304,
+        "longitudeOfAscendingNode": 52,
+        "argumentOfPeriapsis": 0,
+        "meanAnomalyAtEpoch": 5.7295779513,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Laythe",
+      "name": "Laythe",
+      "parent": "Jool",
+      "kind": "moon",
+      "physical": {
+        "radius": 500000,
+        "gravParameter": 1962000000000.0,
+        "rotationPeriod": 52980.879,
+        "tidallyLocked": true,
+        "atmosphere": {
+          "height": 50000,
+          "hasOxygen": true,
+          "seaLevelPressure": 60.795
+        }
+      },
+      "style": {
+        "color": "#3d5fa8"
+      },
+      "orbit": {
+        "semiMajorAxis": 27184000,
+        "eccentricity": 0,
+        "inclination": 0,
+        "longitudeOfAscendingNode": 0,
+        "argumentOfPeriapsis": 0,
+        "meanAnomalyAtEpoch": 179.9087476711,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Vall",
+      "name": "Vall",
+      "parent": "Jool",
+      "kind": "moon",
+      "physical": {
+        "radius": 300000,
+        "gravParameter": 207481500000.0,
+        "rotationPeriod": 105962.09,
+        "tidallyLocked": true
+      },
+      "style": {
+        "color": "#a7c0cf"
+      },
+      "orbit": {
+        "semiMajorAxis": 43152000,
+        "eccentricity": 0,
+        "inclination": 0,
+        "longitudeOfAscendingNode": 0,
+        "argumentOfPeriapsis": 0,
+        "meanAnomalyAtEpoch": 51.5662015618,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Tylo",
+      "name": "Tylo",
+      "parent": "Jool",
+      "kind": "moon",
+      "physical": {
+        "radius": 600000,
+        "gravParameter": 2825280000000.0,
+        "rotationPeriod": 211926.36,
+        "tidallyLocked": true
+      },
+      "style": {
+        "color": "#c9b8a4"
+      },
+      "orbit": {
+        "semiMajorAxis": 68500000,
+        "eccentricity": 0,
+        "inclination": 0.025,
+        "longitudeOfAscendingNode": 0,
+        "argumentOfPeriapsis": 0,
+        "meanAnomalyAtEpoch": 179.9087476711,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Bop",
+      "name": "Bop",
+      "parent": "Jool",
+      "kind": "moon",
+      "physical": {
+        "radius": 65000,
+        "gravParameter": 2486834900.0,
+        "rotationPeriod": 544507.43,
+        "tidallyLocked": true
+      },
+      "style": {
+        "color": "#8a6a4e"
+      },
+      "orbit": {
+        "semiMajorAxis": 128500000,
+        "eccentricity": 0.235,
+        "inclination": 15,
+        "longitudeOfAscendingNode": 10,
+        "argumentOfPeriapsis": 25,
+        "meanAnomalyAtEpoch": 51.5662015618,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Pol",
+      "name": "Pol",
+      "parent": "Jool",
+      "kind": "moon",
+      "physical": {
+        "radius": 44000,
+        "gravParameter": 721702080.0,
+        "rotationPeriod": 901902.62,
+        "tidallyLocked": true
+      },
+      "style": {
+        "color": "#d8c77a"
+      },
+      "orbit": {
+        "semiMajorAxis": 179890000,
+        "eccentricity": 0.171,
+        "inclination": 4.25,
+        "longitudeOfAscendingNode": 2,
+        "argumentOfPeriapsis": 15,
+        "meanAnomalyAtEpoch": 51.5662015618,
+        "epoch": 0
+      }
+    },
+    {
+      "id": "Eeloo",
+      "name": "Eeloo",
+      "parent": "Kerbol",
+      "kind": "dwarf",
+      "physical": {
+        "radius": 210000,
+        "gravParameter": 74410815000.0,
+        "rotationPeriod": 19460
+      },
+      "style": {
+        "color": "#d9d6cf"
+      },
+      "orbit": {
+        "semiMajorAxis": 90118820000,
+        "eccentricity": 0.26,
+        "inclination": 6.15,
+        "longitudeOfAscendingNode": 50,
+        "argumentOfPeriapsis": 260,
+        "meanAnomalyAtEpoch": 179.9087476711,
+        "epoch": 0
+      }
+    }
+  ]
+}
