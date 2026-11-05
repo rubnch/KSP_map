@@ -66,13 +66,15 @@ export function DeltaVView() {
   const landing = useMemo(() => {
     const home = graph.system.home;
     const start = graph.nodes.has(nodeId(home, 'surface')) ? nodeId(home, 'surface') : nodeId(home, 'low');
-    const out = new Map<string, { total: number; orbitOnly: boolean }>();
+    const out = new Map<string, { total: number; worst: number; orbitOnly: boolean }>();
     for (const r of layout.rows) {
       if (r.body === home) continue;
       const surf = nodeId(r.body, 'surface');
       const orbitOnly = !graph.nodes.has(surf);
-      const route = findRoute(graph, start, orbitOnly ? nodeId(r.body, 'low') : surf, options);
-      if (route) out.set(r.body.id, { total: route.total, orbitOnly });
+      const target = orbitOnly ? nodeId(r.body, 'low') : surf;
+      const plain = findRoute(graph, start, target, { ...options, planeChanges: false });
+      const worst = findRoute(graph, start, target, { ...options, planeChanges: true });
+      if (plain && worst) out.set(r.body.id, { total: plain.total, worst: worst.total, orbitOnly });
     }
     return out;
   }, [graph, layout, options]);
@@ -135,19 +137,27 @@ export function DeltaVView() {
         })}
         {layout.rows.map((r) => {
           const last = r.nodes[r.nodes.length - 1]!;
+          const land = landing.get(r.body.id);
+          const home = graph.system.home;
           return (
-            <text key={`n-${r.body.id}`} x={x(last.col) + 16} y={y(r.row) + 4} className="dv-body-name">
-              {r.body.name}
-              {landing.has(r.body.id) && (
-                <tspan className="dv-land" dx={8}>
-                  {fmt(landing.get(r.body.id)!.total)}
-                  {landing.get(r.body.id)!.orbitOnly ? ' to orbit' : ''}
-                  <title>
-                    {`From ${graph.system.home.name}'s surface to ${r.body.name}'s ${landing.get(r.body.id)!.orbitOnly ? 'low orbit' : 'surface'}, m/s`}
-                  </title>
-                </tspan>
+            <g key={`n-${r.body.id}`}>
+              <text x={x(last.col) + 16} y={y(r.row) + 4} className="dv-body-name">
+                {r.body.name}
+              </text>
+              {land && (
+                <text x={x(last.col) + 24 + r.body.name.length * 8} y={y(r.row) + 1} className="dv-land">
+                  {fmt(land.total)}
+                  {land.orbitOnly ? ' to orbit' : ''}
+                  <title>{`From ${home.name}'s surface to ${r.body.name}'s ${land.orbitOnly ? 'low orbit' : 'surface'}, m/s`}</title>
+                </text>
               )}
-            </text>
+              {land && land.worst - land.total >= 5 && (
+                <text x={x(last.col) + 24 + r.body.name.length * 8} y={y(r.row) + 14} className="dv-land worst">
+                  {fmt(land.worst)}
+                  <title>Worst case, with the plane changes included, m/s</title>
+                </text>
+              )}
+            </g>
           );
         })}
         {[...layout.nodes.values()].map((n) => {
@@ -256,7 +266,7 @@ export function DvPanel() {
           </label>
           <label className="dv-toggle">
             <input type="checkbox" checked={options.planeChanges} onChange={(e) => setPlaneChanges(e.target.checked)} />
-            Include plane changes (full inclination gap, burned at the slowest point)
+            Include plane changes (worst case: full inclination gap, at the slowest point)
           </label>
           <AscentTable graph={graph} />
           <p className="dv-note">

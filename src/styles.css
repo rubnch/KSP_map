@@ -442,10 +442,14 @@ button {
   font-weight: 700;
 }
 .dv-land {
-  fill: var(--text-dim);
+  fill: var(--text);
   font-weight: 400;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+.dv-land.worst {
+  fill: var(--text-dim);
+  font-size: 10px;
 }
 .dv-ends {
   margin: 10px 0 0;
