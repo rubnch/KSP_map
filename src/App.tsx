@@ -1,4 +1,4 @@
-import { DeltaVView, DvPanel } from './dv/DeltaVView.tsx';
+import { DeltaVView, DvPanel, DvSettingsPanel } from './dv/DeltaVView.tsx';
 import { MapView } from './map/MapView.tsx';
 import { useMapStore } from './state/store.ts';
 import { BodyList } from './ui/BodyList.tsx';
@@ -16,6 +16,7 @@ export default function App() {
         <DeltaVView />
         <div className="hud dv-hud">
           <Toolbar />
+          <DvSettingsPanel />
           <DvPanel />
         </div>
       </div>

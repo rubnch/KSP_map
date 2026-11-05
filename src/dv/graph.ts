@@ -47,8 +47,10 @@ export interface DvEdge {
   to: string;
   /** Cost without aerobraking, m/s. */
   dv: number;
-  /** Cost when aerobraking is allowed; set only on edges that end inside an atmosphere's reach. */
+  /** Cost when aerobraking is allowed; set only on captures and circularizations inside an atmosphere's reach. */
   aeroDv?: number;
+  /** Cost of a landing with parachutes: just the deorbit burn. Set only on landings on bodies with an atmosphere. */
+  chuteDv?: number;
   /** Plane change covering the full inclination gap, burned at the transfer's slowest point, m/s. The real cost at AN/DN depends on the date; the transfer timeline computes it per window. */
   plane?: number;
   /** Drawn on the map only, to show a path the graph covers with other edges; carries no cost of its own. */
@@ -61,6 +63,8 @@ export interface DvEdge {
 
 export interface DvOptions {
   aerobrake: boolean;
+  /** Land with parachutes where there is an atmosphere. */
+  chutes?: boolean;
   planeChanges: boolean;
 }
 
@@ -68,7 +72,8 @@ export const nodeId = (body: Body, kind: NodeKind, from?: Body) =>
   kind === 'intercept' ? `${body.id}:intercept:${from!.id}` : `${body.id}:${kind}`;
 
 export function edgeCost(e: DvEdge, o: DvOptions): number {
-  const base = o.aerobrake && e.aeroDv !== undefined ? e.aeroDv : e.dv;
+  const base =
+    o.chutes && e.chuteDv !== undefined ? e.chuteDv : o.aerobrake && e.aeroDv !== undefined ? e.aeroDv : e.dv;
   return base + (o.planeChanges && e.plane ? e.plane : 0);
 }
 
@@ -157,7 +162,7 @@ export class DvGraph {
         to: surf,
         dv: ascent.value,
         source: ascent.source,
-        aeroDv: atm ? deorbitBurn(b) : undefined,
+        chuteDv: atm ? deorbitBurn(b) : undefined,
       });
     }
   }
@@ -307,16 +312,18 @@ export function legLabel(g: DvGraph, e: DvEdge, o: DvOptions): string {
   const a = g.node(e.from);
   const b = g.node(e.to);
   const aero = o.aerobrake && e.aeroDv !== undefined;
+  const chutes = o.chutes && e.chuteDv !== undefined;
   const A = a.body.name;
   const B = b.body.name;
   if (a.kind === 'surface') return `Launch to ${B} low orbit`;
-  if (b.kind === 'surface') return aero ? `Deorbit and aerobrake to ${B} surface` : `Land on ${B}`;
+  if (b.kind === 'surface') return chutes ? `Deorbit and parachute to ${B} surface` : `Land on ${B}`;
   if (a.kind === 'intercept' && b.kind === 'sync') return `Capture into ${B} synchronous orbit`;
   if (b.kind === 'sync') return `Raise to ${B} synchronous orbit (two burns)`;
   if (a.kind === 'sync' && b.kind === 'low') return `Lower to ${B} low orbit (two burns)`;
   if (a.kind === 'sync') return `Eject from ${A} synchronous orbit toward ${B}`;
   if (a.kind === 'low' && b.kind === 'capture') return `Escape burn at ${A}`;
-  if (a.kind === 'capture' && b.kind === 'low') return aero ? `Aerobrake into ${B} low orbit` : `Circularize at ${B} low orbit`;
+  if (a.kind === 'capture' && b.kind === 'low')
+    return aero ? `Aerobrake into ${B} low orbit` : `Circularize at ${B} low orbit`;
   if (b.kind === 'intercept') {
     if (a.kind === 'low') return `Transfer burn from ${A} low orbit to ${B}`;
     if (a.kind === 'capture' && b.body.parent === a.body) return `Lower apoapsis at ${A} to reach ${B}`;

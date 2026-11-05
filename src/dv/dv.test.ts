@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import stock from '../../data/packs/stock.json';
 import { PlanetarySystem, type SystemPack } from '../core/index.ts';
-import { ascentCost, DvGraph, findRoute, layoutDvMap, legLabel, routeView, vacuumAscent, type DvOptions } from './index.ts';
+import {
+  ascentCost,
+  DvGraph,
+  findRoute,
+  layoutDvMap,
+  legLabel,
+  routeView,
+  vacuumAscent,
+  type DvOptions,
+} from './index.ts';
 
 const system = new PlanetarySystem(stock as SystemPack);
 const g = new DvGraph(system);
@@ -25,7 +34,12 @@ describe('ascent', () => {
   });
 
   it('estimates atmospheric ascent close to the community figures when the pack has none', () => {
-    for (const [id, community] of [['Kerbin', 3400], ['Eve', 8000], ['Duna', 1450], ['Laythe', 2900]] as const) {
+    for (const [id, community] of [
+      ['Kerbin', 3400],
+      ['Eve', 8000],
+      ['Duna', 1450],
+      ['Laythe', 2900],
+    ] as const) {
       const b = system.get(id);
       const bare = { ...b, data: { ...b.data, deltaV: { ...b.data.deltaV, ascent: undefined } } };
       const est = ascentCost(bare);
@@ -61,7 +75,8 @@ describe('transfers from low Kerbin orbit', () => {
 
 describe('synchronous orbits', () => {
   it('exist only where they fit inside the SOI', () => {
-    for (const id of ['Kerbin', 'Eve', 'Duna', 'Jool', 'Minmus', 'Dres', 'Eeloo']) expect(g.nodes.has(`${id}:sync`)).toBe(true);
+    for (const id of ['Kerbin', 'Eve', 'Duna', 'Jool', 'Minmus', 'Dres', 'Eeloo'])
+      expect(g.nodes.has(`${id}:sync`)).toBe(true);
     for (const id of ['Mun', 'Moho', 'Laythe', 'Tylo']) expect(g.nodes.has(`${id}:sync`)).toBe(false);
   });
 
@@ -75,8 +90,11 @@ describe('synchronous orbits', () => {
 
 describe('aerobraking', () => {
   it('makes Duna capture and landing nearly free', () => {
-    const aero = { aerobrake: true, planeChanges: false };
+    const aero = { aerobrake: true, chutes: true, planeChanges: false };
     expect(cost('Duna:intercept:Kerbin', 'Duna:surface', aero)).toBeLessThan(60);
+    // Aerobraking alone still lands under power.
+    expect(cost('Duna:low', 'Duna:surface', { aerobrake: true, planeChanges: false })).toBe(1450);
+    expect(cost('Duna:low', 'Duna:surface', { aerobrake: false, chutes: true, planeChanges: false })).toBeLessThan(60);
     expect(cost('Duna:intercept:Kerbin', 'Duna:surface')).toBeGreaterThan(1450);
   });
 
@@ -88,8 +106,10 @@ describe('aerobraking', () => {
 describe('plane changes', () => {
   it('only count when asked, and are larger for inclined targets', () => {
     const withPlane = { aerobrake: false, planeChanges: true };
-    const moho = cost('Kerbin:capture', 'Moho:intercept:Kerbin', withPlane) - cost('Kerbin:capture', 'Moho:intercept:Kerbin');
-    const duna = cost('Kerbin:capture', 'Duna:intercept:Kerbin', withPlane) - cost('Kerbin:capture', 'Duna:intercept:Kerbin');
+    const moho =
+      cost('Kerbin:capture', 'Moho:intercept:Kerbin', withPlane) - cost('Kerbin:capture', 'Moho:intercept:Kerbin');
+    const duna =
+      cost('Kerbin:capture', 'Duna:intercept:Kerbin', withPlane) - cost('Kerbin:capture', 'Duna:intercept:Kerbin');
     expect(moho).toBeGreaterThan(500);
     expect(duna).toBeLessThan(20);
   });
@@ -103,7 +123,7 @@ describe('routes', () => {
   });
 
   it('gets home from the Mun', () => {
-    const r = findRoute(g, 'Mun:surface', 'Kerbin:surface', { aerobrake: true, planeChanges: false })!;
+    const r = findRoute(g, 'Mun:surface', 'Kerbin:surface', { aerobrake: true, chutes: true, planeChanges: false })!;
     expect(r.nodes).toContain('Kerbin:intercept:Mun');
     near(r.total, 580 + 310, 10);
   });
@@ -157,14 +177,15 @@ describe('layout', () => {
   });
 
   it('describes return legs as the burns they are', () => {
-    const back = findRoute(g, 'Eeloo:surface', 'Kerbin:surface', { aerobrake: true, planeChanges: false })!;
-    expect(back.edges.map((e) => legLabel(g, e, { aerobrake: true, planeChanges: false }))).toEqual([
+    const o = { aerobrake: true, chutes: true, planeChanges: false };
+    const back = findRoute(g, 'Eeloo:surface', 'Kerbin:surface', o)!;
+    expect(back.edges.map((e) => legLabel(g, e, o))).toEqual([
       'Launch to Eeloo low orbit',
       'Escape burn at Eeloo',
       'Eject from Eeloo toward Kerbin',
       'Aerocapture at Kerbin',
       'Aerobrake into Kerbin low orbit',
-      'Deorbit and aerobrake to Kerbin surface',
+      'Deorbit and parachute to Kerbin surface',
     ]);
   });
 

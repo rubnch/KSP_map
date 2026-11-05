@@ -11,9 +11,10 @@ import {
   type DvEdge,
   type DvNode,
   type DvOptions,
+  type Route,
 } from './graph.ts';
 import { layoutDvMap, routeView, type LayoutNode } from './layout.ts';
-import { useDvStore } from './store.ts';
+import { useDvStore, type DvSettings } from './store.ts';
 
 const COL = 98;
 const ROW = 52;
@@ -39,8 +40,22 @@ function useDvGraph() {
 
 function useOptions(): DvOptions {
   const aerobrake = useDvStore((s) => s.aerobrake);
+  const chutes = useDvStore((s) => s.chutes);
   const planeChanges = useDvStore((s) => s.planeChanges);
-  return useMemo(() => ({ aerobrake, planeChanges }), [aerobrake, planeChanges]);
+  return useMemo(() => ({ aerobrake, chutes, planeChanges }), [aerobrake, chutes, planeChanges]);
+}
+
+/** The route there, and the way back when round trips are on. */
+function useRoutes(graph: DvGraph, options: DvOptions) {
+  const from = useDvStore((s) => s.from);
+  const to = useDvStore((s) => s.to);
+  const roundTrip = useDvStore((s) => s.roundTrip);
+  return useMemo(() => {
+    if (!from || !to || !graph.nodes.has(from) || !graph.nodes.has(to)) return { route: null, back: null, total: 0 };
+    const route = findRoute(graph, from, to, options);
+    const back = roundTrip ? findRoute(graph, to, from, options) : null;
+    return { route, back, total: (route?.total ?? 0) + (back?.total ?? 0) };
+  }, [graph, from, to, roundTrip, options]);
 }
 
 /** The delta-v map: a subway diagram generated from the loaded system, plus the route panel. */
@@ -52,10 +67,8 @@ export function DeltaVView() {
   const pick = useDvStore((s) => s.pick);
   const clear = useDvStore((s) => s.clear);
   const layout = useMemo(() => layoutDvMap(graph), [graph]);
-  const route = useMemo(
-    () => (from && to && graph.nodes.has(from) && graph.nodes.has(to) ? findRoute(graph, from, to, options) : null),
-    [graph, from, to, options],
-  );
+  const roundTrip = useDvStore((s) => s.roundTrip);
+  const { route } = useRoutes(graph, options);
   const view = useMemo(
     () => (route ? routeView(layout, route.nodes, route.edges, options) : null),
     [graph, layout, route, options],
@@ -76,12 +89,17 @@ export function DeltaVView() {
       const surf = nodeId(r.body, 'surface');
       const orbitOnly = !graph.nodes.has(surf);
       const target = orbitOnly ? nodeId(r.body, 'low') : surf;
-      const plain = findRoute(graph, start, target, { ...options, planeChanges: false });
-      const worst = findRoute(graph, start, target, { ...options, planeChanges: true });
-      if (plain && worst) out.set(r.body.id, { total: plain.total, worst: worst.total, orbitOnly });
+      const cost = (o: DvOptions) => {
+        const there = findRoute(graph, start, target, o);
+        const back = roundTrip ? findRoute(graph, target, start, o) : null;
+        return there && (back || !roundTrip) ? there.total + (back?.total ?? 0) : null;
+      };
+      const total = cost(options);
+      const worst = cost({ ...options, planeChanges: true });
+      if (total !== null && worst !== null) out.set(r.body.id, { total, worst, orbitOnly });
     }
     return out;
-  }, [graph, layout, options]);
+  }, [graph, layout, options, roundTrip]);
 
   const width = trunkX + layout.maxCol * COL + NAME_W + PAD_X;
   // The solar trunk: from the first planet branch to the last.
@@ -109,7 +127,14 @@ export function DeltaVView() {
       const sub = bn.sub ? b : a;
       const side = top.x < sub.x ? -1 : 1;
       // Beside the sync node, on the side of the node this leg comes from.
-      return { d: `M${a.x},${a.y} L${b.x},${b.y}`, lx: sub.x + side * 10, ly: sub.y + 11, anchor: (side < 0 ? 'end' : 'start') as 'end' | 'start', a, b };
+      return {
+        d: `M${a.x},${a.y} L${b.x},${b.y}`,
+        lx: sub.x + side * 10,
+        ly: sub.y + 11,
+        anchor: (side < 0 ? 'end' : 'start') as 'end' | 'start',
+        a,
+        b,
+      };
     }
     // Transfers from home leave from the trunk, where the home branch joins it.
     if (trunkEdge(e)) {
@@ -130,7 +155,9 @@ export function DeltaVView() {
     return (
       <text y={17}>
         Sync {km} km ·{' '}
-        <tspan className={routed ? 'route-value' : 'sync-cost'}>{value === null || value === undefined ? '—' : fmt(value)}</tspan>
+        <tspan className={routed ? 'route-value' : 'sync-cost'}>
+          {value === null || value === undefined ? '—' : fmt(value)}
+        </tspan>
         <title>
           {routed
             ? "This route's cost into or out of the synchronous orbit"
@@ -143,6 +170,7 @@ export function DeltaVView() {
   const edgeLabel = (e: DvEdge) => {
     const { lx, ly } = geometry(e);
     const aero = options.aerobrake && e.aeroDv !== undefined;
+    const chute = options.chutes && e.chuteDv !== undefined;
     const override = view?.labels.get(e.id);
     const hasOverride = view?.labels.has(e.id) ?? false;
     const anchor = geometry(e).anchor;
@@ -153,14 +181,17 @@ export function DeltaVView() {
         <text x={lx} y={ly - 7} textAnchor={anchor} className={hasOverride ? 'route-value' : undefined}>
           {hasOverride ? (override === null ? '—' : fmt(override!)) : fmt(edgeCost(e, options))}
           {!hasOverride && e.aeroDv !== undefined && <tspan className="aero-mark">{aero ? ' ✓A' : ' A'}</tspan>}
+          {!hasOverride && e.chuteDv !== undefined && <tspan className="aero-mark">{chute ? ' ✓P' : ' P'}</tspan>}
           <title>
             {hasOverride
               ? override === null
                 ? 'Coasting: no burn here on this route'
-                : 'This route\'s cost for this leg'
+                : "This route's cost for this leg"
               : e.aeroDv !== undefined
                 ? `Aerobraking possible: ${fmt(e.dv)} m/s powered, ${fmt(e.aeroDv)} m/s with aerobraking`
-                : `${fmt(e.dv)} m/s`}
+                : e.chuteDv !== undefined
+                  ? `Parachutes possible: ${fmt(e.dv)} m/s powered landing, ${fmt(e.chuteDv)} m/s deorbit burn with parachutes`
+                  : `${fmt(e.dv)} m/s`}
             {!hasOverride && e.source ? ` (${SOURCE_LABEL[e.source]})` : ''}
             {!hasOverride && e.burns ? ` (burns: ${fmt(e.burns[0])} + ${fmt(e.burns[1])})` : ''}
           </title>
@@ -244,10 +275,10 @@ export function DeltaVView() {
                 <text x={nx} y={p.y + 1} className="dv-land">
                   {fmt(land.total)}
                   {land.orbitOnly ? ' to orbit' : ''}
-                  <title>{`From ${graph.system.home.name}'s surface to ${r.body.name}'s ${land.orbitOnly ? 'low orbit' : 'surface'}, m/s`}</title>
+                  <title>{`From ${graph.system.home.name}'s surface to ${r.body.name}'s ${land.orbitOnly ? 'low orbit' : 'surface'}${roundTrip ? ' and back' : ''}, with the calculator settings, m/s`}</title>
                 </text>
               )}
-              {land && land.worst - land.total >= 5 && (
+              {land && !options.planeChanges && land.worst - land.total >= 5 && (
                 <text x={nx} y={p.y + 14} className="dv-land worst">
                   {fmt(land.worst)}
                   <title>Worst case, with the plane changes included, m/s</title>
@@ -272,12 +303,11 @@ export function DeltaVView() {
               onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && pick(n.id)}
             >
               <circle r={13} className="hit" />
-              <circle r={node.kind === 'surface' ? 7 : n.sub ? 4.5 : 5.5} style={{ fill: node.body.data.style.color }} />
-              {n.sub ? (
-                syncLabel(node)
-              ) : (
-                <text y={20}>{shortLabel(node)}</text>
-              )}
+              <circle
+                r={node.kind === 'surface' ? 7 : n.sub ? 4.5 : 5.5}
+                style={{ fill: node.body.data.style.color }}
+              />
+              {n.sub ? syncLabel(node) : <text y={20}>{shortLabel(node)}</text>}
               <title>{nodeLabel(node)}</title>
             </g>
           );
@@ -302,13 +332,20 @@ function shortLabel(n: DvNode): string {
   }
 }
 
-/** Route total and legs, options, and the editable ascent / landing values. */
+/** Route total and legs. */
 export function DvPanel() {
   const { graph } = useDvGraph();
   const options = useOptions();
-  const { from, to, swap, clear, setAerobrake, setPlaneChanges } = useDvStore();
+  const { from, to, swap, clear } = useDvStore();
   const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > 720);
-  const route = from && to && graph.nodes.has(from) && graph.nodes.has(to) ? findRoute(graph, from, to, options) : null;
+  const { route, back, total } = useRoutes(graph, options);
+  const legs = (r: Route) =>
+    r.edges.map((e) => (
+      <li key={e.id}>
+        <span>{legLabel(graph, e, options)}</span>
+        <span className="num">{fmt(edgeCost(e, options))}</span>
+      </li>
+    ));
   const showOnMap = () => {
     const target = to ?? from;
     if (!target) return;
@@ -321,14 +358,14 @@ export function DvPanel() {
     <aside className="panel info-panel dv-panel" aria-label="Delta-v route">
       <header onClick={() => setOpen(!open)} aria-expanded={open} role="button" tabIndex={0}>
         <span className="dot" style={{ background: 'var(--route-start)' }} />
-        <h2>{route ? `${fmt(route.total)} m/s` : 'Δv route'}</h2>
+        <h2>{route ? `${fmt(total)} m/s` : 'Δv route'}</h2>
         <span className="chevron">{open ? '▾' : '▸'}</span>
         <span className="kind">
           {!from
             ? 'Click a node to start a route'
             : !to
               ? `From ${nodeLabel(graph.node(from))}: pick a destination`
-              : `${nodeLabel(graph.node(from))} → ${nodeLabel(graph.node(to))}`}
+              : `${nodeLabel(graph.node(from))} ${back ? '⇄' : '→'} ${nodeLabel(graph.node(to))}`}
         </span>
       </header>
       {open && (
@@ -344,15 +381,19 @@ export function DvPanel() {
               )}
             </p>
           )}
-          {route && (
-            <ol className="dv-legs">
-              {route.edges.map((e) => (
-                <li key={e.id}>
-                  <span>{legLabel(graph, e, options)}</span>
-                  <span className="num">{fmt(edgeCost(e, options))}</span>
-                </li>
-              ))}
-            </ol>
+          {route && back && (
+            <h3 className="dv-leg-head">
+              There<span className="num">{fmt(route.total)}</span>
+            </h3>
+          )}
+          {route && <ol className="dv-legs">{legs(route)}</ol>}
+          {back && (
+            <>
+              <h3 className="dv-leg-head">
+                Back<span className="num">{fmt(back.total)}</span>
+              </h3>
+              <ol className="dv-legs">{legs(back)}</ol>
+            </>
           )}
           {from && (
             <div className="dv-actions">
@@ -363,20 +404,58 @@ export function DvPanel() {
               <button onClick={showOnMap}>Show on map</button>
             </div>
           )}
-          <label className="dv-toggle">
-            <input type="checkbox" checked={options.aerobrake} onChange={(e) => setAerobrake(e.target.checked)} />
-            Aerobrake where there is an atmosphere (A)
-          </label>
-          <label className="dv-toggle">
-            <input type="checkbox" checked={options.planeChanges} onChange={(e) => setPlaneChanges(e.target.checked)} />
-            Include plane changes (worst case: full inclination gap, at the slowest point)
-          </label>
-          <AscentTable graph={graph} />
           <p className="dv-note">
             Generated from the system data with Hohmann transfers between circular orbits; expect a few percent off
             in-game. Capture nodes are orbits with periapsis at low orbit and apoapsis at the edge of the sphere of
             influence.
           </p>
+        </>
+      )}
+    </aside>
+  );
+}
+
+const SETTINGS: { key: keyof DvSettings; label: string; hint: string }[] = [
+  { key: 'roundTrip', label: 'Round trip', hint: 'Totals include the way back to the start.' },
+  { key: 'aerobrake', label: 'Aerobraking (A)', hint: 'Captures and circularizations use the atmosphere.' },
+  { key: 'chutes', label: 'Parachutes (P)', hint: 'Landings in an atmosphere cost only the deorbit burn.' },
+  {
+    key: 'planeChanges',
+    label: 'Plane changes',
+    hint: 'Worst case: the full inclination gap, burned at the slowest point.',
+  },
+];
+
+/** What the calculator counts: applies to the route, the map's numbers and the totals next to each name. */
+export function DvSettingsPanel() {
+  const { graph } = useDvGraph();
+  const store = useDvStore();
+  // Closed by default so it doesn't cover the map; the summary line says what's on.
+  const [open, setOpen] = useState(false);
+  const on = SETTINGS.filter((s) => store[s.key]).map((s) => s.label.replace(/ \(.\)$/, ''));
+  return (
+    <aside className="panel info-panel dv-settings" aria-label="Calculator settings">
+      <header onClick={() => setOpen(!open)} aria-expanded={open} role="button" tabIndex={0}>
+        <h2>Calculator</h2>
+        <span className="chevron">{open ? '▾' : '▸'}</span>
+        {!open && <span className="kind">{on.length ? on.join(' · ') : 'One way, all powered'}</span>}
+      </header>
+      {open && (
+        <>
+          {SETTINGS.map((s) => (
+            <label key={s.key} className="dv-toggle">
+              <input
+                type="checkbox"
+                checked={store[s.key]}
+                onChange={(e) => store.setSetting(s.key, e.target.checked)}
+              />
+              <span>
+                {s.label}
+                <small>{s.hint}</small>
+              </span>
+            </label>
+          ))}
+          <AscentTable graph={graph} />
         </>
       )}
     </aside>
