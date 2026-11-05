@@ -99,6 +99,16 @@
             "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
             "orbitColor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
           }
+        },
+        "deltaV": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Hints for the delta-v map. All optional; anything missing is derived from the physical data.",
+          "properties": {
+            "lowOrbitAltitude": { "type": "number", "exclusiveMinimum": 0, "description": "Altitude of the low orbit used as this body's hub, metres above the surface" },
+            "ascent": { "type": "number", "minimum": 0, "description": "Surface to low orbit, m/s (community value). Landing without aerobraking costs the same" },
+            "hasSurface": { "type": "boolean", "description": "False for gas giants: no surface node" }
+          }
         }
       }
     }

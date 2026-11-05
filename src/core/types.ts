@@ -36,6 +36,16 @@ export interface BodyStyle {
   orbitColor?: string;
 }
 
+/** Optional hints for the delta-v map; anything missing is derived from the physical data. */
+export interface DeltaVHints {
+  /** Low orbit altitude above the surface, metres. */
+  lowOrbitAltitude?: number;
+  /** Surface → low orbit, m/s (community value). */
+  ascent?: number;
+  /** False for gas giants. Defaults to true for everything but stars. */
+  hasSurface?: boolean;
+}
+
 export interface BodyData {
   id: string;
   name: string;
@@ -44,6 +54,7 @@ export interface BodyData {
   physical: PhysicalProperties;
   orbit?: OrbitalElements;
   style: BodyStyle;
+  deltaV?: DeltaVHints;
 }
 
 export interface SystemPack {
