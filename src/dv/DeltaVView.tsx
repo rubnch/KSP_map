@@ -36,14 +36,6 @@ function Pill({ x, y, text, transform }: { x: number; y: number; text: string; t
   return <rect className="dv-pill" x={x - w / 2} y={y - 8} width={w} height={16} rx={8} transform={transform} />;
 }
 
-/** Whether a line colour is light enough to need dark numbers on it. */
-function light(color: string) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(color.trim());
-  if (!m) return false;
-  const n = parseInt(m[1]!, 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  return 0.299 * r + 0.587 * g + 0.114 * b > 165;
-}
 /** A polyline with its corners rounded off, like a subway map. */
 function rounded(pts: Pt[], r = 16) {
   const p = pts.filter((q, i) => i === 0 || q.x !== pts[i - 1]!.x || q.y !== pts[i - 1]!.y);
@@ -351,9 +343,8 @@ export function DeltaVView() {
     const back = g.vertical ? g.b.y > g.a.y : g.b.x < g.a.x;
     const arrow = override !== null && e.aeroDv !== undefined ? (back ? (aero ? '◀' : '◁') : aero ? '▶' : '▷') : '';
     const turn = g.vertical ? `rotate(-90 ${g.lx} ${g.ly})` : undefined;
-    const ink = !dim && light(lineColor(e)) ? ' ink' : '';
     return (
-      <g key={`l-${e.id}`} className={`dv-edge-label${dim ? ' dim' : ''}${ink}`}>
+      <g key={`l-${e.id}`} className={`dv-edge-label${dim ? ' dim' : ''}`}>
         {hasOverride && (
           <Pill
             x={g.lx}
@@ -463,7 +454,7 @@ export function DeltaVView() {
               const y = pos(homeCap).y + 4;
               const ix = trunkX + (homeCap.col - Math.sign(homeCap.col)) * COL;
               return (
-                <g className={`dv-edge-label${light(star.data.style.color) ? ' ink' : ''}`}>
+                <g className="dv-edge-label">
                   <Pill x={(trunkX + ix) / 2} y={y - 4} text={fmt(preview.get('home-eject')!)} />
                   <text x={(trunkX + ix) / 2} y={y} className="route-value">
                     {fmt(preview.get('home-eject')!)}
