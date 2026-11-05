@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import stock from '../../data/packs/stock.json';
 import { PlanetarySystem, type SystemPack } from '../core/index.ts';
-import { ascentCost, DvGraph, findRoute, layoutDvMap, legLabel, routeHighlight, vacuumAscent, type DvOptions } from './index.ts';
+import { ascentCost, DvGraph, findRoute, layoutDvMap, legLabel, routeOverlay, vacuumAscent, type DvOptions } from './index.ts';
 
 const system = new PlanetarySystem(stock as SystemPack);
 const g = new DvGraph(system);
@@ -128,11 +128,21 @@ describe('layout', () => {
   it('highlights the same line for a trip and its return', () => {
     const out = findRoute(g, 'Kerbin:surface', 'Eeloo:surface', plain)!;
     const back = findRoute(g, 'Eeloo:surface', 'Kerbin:surface', plain)!;
-    const a = routeHighlight(g, layout, out.nodes);
-    const b = routeHighlight(g, layout, back.nodes);
-    expect(a.size).toBe(6);
-    expect([...b].sort()).toEqual([...a].sort());
+    const a = routeOverlay(g, layout, out.edges, plain);
+    const b = routeOverlay(g, layout, back.edges, plain);
+    expect(a.highlight.size).toBe(6);
+    expect(a.extra).toEqual([]);
+    expect([...b.highlight].sort()).toEqual([...a.highlight].sort());
+    expect(b.extra).toEqual([]);
     expect(back.total).toBeCloseTo(out.total, 6);
+  });
+
+  it('draws undrawn transfers, like Moho to Eve, with their own numbers', () => {
+    const r = findRoute(g, 'Moho:low', 'Eve:low', plain)!;
+    const { highlight, extra } = routeOverlay(g, layout, r.edges, plain);
+    expect([...highlight].sort()).toEqual(['Eve:capture->Eve:low', 'Moho:capture->Moho:low']);
+    expect(extra.map((x) => x.edge.id)).toEqual(['Moho:capture->Eve:intercept:Moho', 'Eve:intercept:Moho->Eve:capture']);
+    expect(extra[0]!.to.id).toBe('Eve:intercept:Kerbin');
   });
 
   it('describes return legs as the burns they are', () => {

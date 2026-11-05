@@ -381,6 +381,22 @@ button {
   stroke-width: 5;
   opacity: 1;
 }
+.dv-extra path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-dasharray: 7 5;
+}
+.dv-extra text {
+  fill: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 4px;
+}
 .dv-edge-label text {
   fill: var(--text);
   text-anchor: middle;

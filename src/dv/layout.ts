@@ -7,7 +7,7 @@
  * A row hangs below the node it branches from, one column to the right.
  */
 import type { Body } from '../core/index.ts';
-import { DvGraph, hierarchyPath, nodeId, shortestPaths, type DvEdge, type NodeKind } from './graph.ts';
+import { DvGraph, edgeCost, hierarchyPath, nodeId, shortestPaths, type DvEdge, type DvOptions, type NodeKind } from './graph.ts';
 
 export interface LayoutNode {
   id: string;
@@ -116,25 +116,41 @@ export function layoutDvMap(g: DvGraph): DvLayout {
   return { rows, nodes, edges, cols };
 }
 
+export interface RouteOverlay {
+  /** Drawn edges the route follows at the drawn cost. */
+  highlight: Set<string>;
+  /** Legs the map doesn't draw, or draws with another origin's cost: drawn on top, with the route's value. */
+  extra: { edge: DvEdge; from: LayoutNode; to: LayoutNode }[];
+}
+
 /**
- * Drawn edges to highlight for a route. A route can use nodes the map doesn't draw, such as
- * Kerbin's intercept when coming back from Eeloo; those stand in for the drawn intercept of the
- * same transfer (Eeloo's intercept from Kerbin), so a return trip lights up the same line.
+ * How to show a route on the map. The map only draws transfers from the home world, so a leg
+ * like Moho → Eve has no line of its own. Hidden intercept nodes stand in for a drawn intercept
+ * of the same body (the mirror of the same transfer first, e.g. Eeloo's intercept from Kerbin
+ * for Kerbin's intercept from Eeloo). Where the drawn line between the stand-ins carries the
+ * same cost, it is highlighted; otherwise the leg is drawn over it with its own number.
  */
-export function routeHighlight(g: DvGraph, layout: DvLayout, routeNodes: string[]): Set<string> {
-  const shown = (id: string): string | null => {
-    if (layout.nodes.has(id)) return id;
+export function routeOverlay(g: DvGraph, layout: DvLayout, routeEdges: DvEdge[], o: DvOptions): RouteOverlay {
+  const shown = (id: string): LayoutNode | undefined => {
+    const direct = layout.nodes.get(id);
+    if (direct) return direct;
     const n = g.node(id);
-    if (n.kind !== 'intercept') return null;
-    const mirror = nodeId(n.from!, 'intercept', n.body);
-    return layout.nodes.has(mirror) ? mirror : null;
+    if (n.kind !== 'intercept') return undefined;
+    const mirror = layout.nodes.get(nodeId(n.from!, 'intercept', n.body));
+    if (mirror) return mirror;
+    for (const [lid, ln] of layout.nodes) if (lid.startsWith(`${n.body.id}:intercept:`)) return ln;
+    return undefined;
   };
-  const mapped = routeNodes.map(shown);
-  const pairs = new Set<string>();
-  for (let i = 1; i < mapped.length; i++) {
-    const a = mapped[i - 1];
-    const b = mapped[i];
-    if (a && b && a !== b) pairs.add(`${a}|${b}`).add(`${b}|${a}`);
+  const drawn = new Map(layout.edges.map((e) => [`${e.from}|${e.to}`, e]));
+  const highlight = new Set<string>();
+  const extra: RouteOverlay['extra'] = [];
+  for (const e of routeEdges) {
+    const a = shown(e.from);
+    const b = shown(e.to);
+    if (!a || !b || a === b) continue;
+    const same = drawn.get(`${a.id}|${b.id}`) ?? drawn.get(`${b.id}|${a.id}`);
+    if (same && Math.abs(edgeCost(same, o) - edgeCost(e, o)) < 0.5) highlight.add(same.id);
+    else extra.push({ edge: e, from: a, to: b });
   }
-  return new Set(layout.edges.filter((e) => pairs.has(`${e.from}|${e.to}`)).map((e) => e.id));
+  return { highlight, extra };
 }
