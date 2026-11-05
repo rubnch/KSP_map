@@ -376,11 +376,6 @@ button {
   height: 100%;
   font-size: 11px;
 }
-.dv-view .caption {
-  fill: var(--text-dim);
-  font-size: 8.5px;
-  font-weight: 400;
-}
 .dv-zoom {
   position: absolute;
   left: 16px;

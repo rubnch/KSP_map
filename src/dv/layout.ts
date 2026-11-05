@@ -9,7 +9,16 @@
  * Moons hang below their planet's row, one column further out.
  */
 import type { Body } from '../core/index.ts';
-import { DvGraph, edgeCost, hierarchyPath, nodeId, shortestPaths, type DvEdge, type DvOptions, type NodeKind } from './graph.ts';
+import {
+  DvGraph,
+  edgeCost,
+  hierarchyPath,
+  nodeId,
+  shortestPaths,
+  type DvEdge,
+  type DvOptions,
+  type NodeKind,
+} from './graph.ts';
 
 export interface LayoutNode {
   id: string;
@@ -44,8 +53,11 @@ export interface DvLayout {
   height: number;
 }
 
+/** Columns between the capture and low orbit nodes: wider than the rest, for the synchronous orbit's two nodes under it. */
+export const CAPTURE_GAP = 1.8;
+
 /** Extra height, in rows, of a row with a synchronous orbit under it. */
-export const SUB_ROWS = 0.8;
+export const SUB_ROWS = 1.1;
 
 const ORDER: NodeKind[] = ['intercept', 'capture', 'low', 'surface'];
 
@@ -68,7 +80,10 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
   for (const b of g.system.bodies) {
     if (!b.parent) continue;
     if (b === home) {
-      chains.set(b, (['surface', 'low', 'capture'] as const).map((k) => nodeId(b, k)).filter((id) => g.nodes.has(id)));
+      chains.set(
+        b,
+        (['surface', 'low', 'capture'] as const).map((k) => nodeId(b, k)).filter((id) => g.nodes.has(id)),
+      );
       continue;
     }
     const intercept = nodeId(b, 'intercept', naturalOrigin(g, home, b));
@@ -81,7 +96,12 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     }
     if (!best) continue;
     attachOf.set(b, best);
-    chains.set(b, [intercept, ...ORDER.slice(1).map((k) => nodeId(b, k)).filter((id) => g.nodes.has(id))]);
+    chains.set(b, [
+      intercept,
+      ...ORDER.slice(1)
+        .map((k) => nodeId(b, k))
+        .filter((id) => g.nodes.has(id)),
+    ]);
   }
 
   const childrenOf = new Map<string, Body[]>();
@@ -117,24 +137,36 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
       minCol = Math.min(minCol, n.col);
       maxCol = Math.max(maxCol, n.col);
     };
+    // Columns from the trunk: one apart, except the wider gap between capture and low orbit (on
+    // every row, so the columns line up from row to row).
+    const cols: number[] = [];
+    shown.forEach((_, i) => {
+      const pair = i > 0 && [i - 1, i].every((j) => j === lowIdx || j === capIdx);
+      cols.push(i === 0 ? col0 : cols[i - 1]! + (pair ? CAPTURE_GAP : 1));
+    });
     shown.forEach((id, i) => {
-      const n = { id, col: side * (col0 + i), y: r.y };
+      const n = { id, col: side * cols[i]!, y: r.y };
       r.nodes.push(n);
       put(n);
     });
     ids.forEach((id, i) => i > 0 && edges.push(g.edge(ids[i - 1]!, id)!));
     if (attach) edges.push(attach);
-    // The synchronous orbit sits just under the row, between the low orbit (launches climb to it)
-    // and the capture node (arrivals capture straight into it), joined to both.
+    // Under the row, between the low orbit and the capture node: the transfer ellipse on the low
+    // orbit's side (launches climb through it), the synchronous orbit on the capture's side
+    // (arrivals capture straight into it).
     if (tall) {
-      put({ id: sync, col: side * (col0 + (lowIdx + capIdx) / 2), y: r.y + SUB_ROWS, sub: true });
-      edges.push(g.edge(shown[lowIdx]!, sync)!);
+      const xfer = nodeId(b, 'syncTransfer');
+      const at = (f: number) => side * (cols[lowIdx]! + (cols[capIdx]! - cols[lowIdx]!) * f);
+      put({ id: xfer, col: at(0.25), y: r.y + SUB_ROWS, sub: true });
+      put({ id: sync, col: at(0.75), y: r.y + SUB_ROWS, sub: true });
+      edges.push(g.edge(shown[lowIdx]!, xfer)!);
+      edges.push(g.edge(xfer, sync)!);
       edges.push({ id: `${shown[capIdx]}->${sync}`, from: shown[capIdx]!, to: sync, dv: 0, link: true });
     }
     // Outermost branch points first, so the connectors of inner nodes never cross rows.
     for (let i = shown.length - 1; i >= 0; i--) {
       const kids = (childrenOf.get(shown[i]!) ?? []).sort((x, y) => x.orbit!.a - y.orbit!.a);
-      for (const k of kids) if (!blocks.has(k)) place(k, col0 + i + 1, side);
+      for (const k of kids) if (!blocks.has(k)) place(k, cols[i]! + 1, side);
     }
   };
 
@@ -218,7 +250,8 @@ export function routeView(layout: DvLayout, routeNodes: string[], routeEdges: Dv
   let i = 0;
   while (i < routeEdges.length) {
     const legs = [routeEdges[i]!];
-    while (!layout.nodes.has(legs[legs.length - 1]!.to) && i + legs.length < routeEdges.length) legs.push(routeEdges[i + legs.length]!);
+    while (!layout.nodes.has(legs[legs.length - 1]!.to) && i + legs.length < routeEdges.length)
+      legs.push(routeEdges[i + legs.length]!);
     i += legs.length;
     const a = at(legs[0]!.from);
     const b = path.findIndex((p) => p.to === legs[legs.length - 1]!.to);
@@ -235,7 +268,11 @@ export function routeView(layout: DvLayout, routeNodes: string[], routeEdges: Dv
     const last = legs.length > 1 ? legs[legs.length - 1]! : null;
     span.forEach((p, k) => {
       if (k === 0 && (last || span.length === 1)) put(p.edge, edgeCost(first, o));
-      else if (k === span.length - 1) put(p.edge, edgeCost(last ?? first, o) + (last ? legs.slice(1, -1).reduce((t, e) => t + edgeCost(e, o), 0) : 0));
+      else if (k === span.length - 1)
+        put(
+          p.edge,
+          edgeCost(last ?? first, o) + (last ? legs.slice(1, -1).reduce((t, e) => t + edgeCost(e, o), 0) : 0),
+        );
       else put(p.edge, null);
     });
   }

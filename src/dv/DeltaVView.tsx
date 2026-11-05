@@ -116,8 +116,6 @@ export function DeltaVView() {
   const height = PAD_Y * 2 + (layout.height - 1) * ROW;
   const box = useRef<HTMLDivElement>(null);
   const pz = usePanZoom(box, { width, height }, panelInsets);
-  // Zoomed in, connections say what they are and what the alternatives cost.
-  const detail = pz.view.k >= 1.3;
   const shortcutEdges = new Set(view?.shortcuts.flatMap((sc) => [sc.up.id, sc.down.id]));
   const stubOn = layout.edges.some((e) => trunkEdge(e) && view?.edges.has(e.id) && !shortcutEdges.has(e.id));
 
@@ -126,11 +124,19 @@ export function DeltaVView() {
     const b = pos(layout.nodes.get(e.to)!);
     const an = layout.nodes.get(e.from)!;
     const bn = layout.nodes.get(e.to)!;
-    // The synchronous orbit hangs under its row: along the row to the spot above it, then straight down.
+    // Under the row: from the row node along the row to the spot above, then straight down, with
+    // the number low beside the drop, on the inner side. Between the two sub nodes: straight
+    // across, with the number under the line (their names read outwards, away from it).
+    if (an.sub && bn.sub) {
+      return { d: `M${a.x},${a.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y + 20, anchor: undefined, a, b };
+    }
     if (bn.sub || an.sub) {
+      const top = bn.sub ? a : b;
       const sub = bn.sub ? b : a;
       const d = bn.sub ? `M${a.x},${a.y} H${b.x} V${b.y}` : `M${a.x},${a.y} V${b.y} H${b.x}`;
-      return { d, lx: sub.x, ly: sub.y, anchor: undefined, a, b };
+      const inner = top.x < sub.x ? 1 : -1;
+      const anchor = (inner < 0 ? 'end' : 'start') as 'end' | 'start';
+      return { d, lx: sub.x + inner * 6, ly: sub.y - 1, anchor, a, b };
     }
     // Transfers from home leave from the trunk, where the home branch joins it.
     if (trunkEdge(e)) {
@@ -141,55 +147,20 @@ export function DeltaVView() {
     return { d: `M${a.x},${a.y} V${b.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y, anchor: undefined, a, b };
   };
 
-  // "Sync 2,863 km · 1,099": the climb from low orbit, or this route's cost into the orbit.
-  const syncLabel = (node: DvNode) => {
-    const km = Math.round(((syncOrbitRadius(node.body) ?? 0) - node.body.radius) / 1000).toLocaleString('en-US');
-    const up = layout.edges.find((e) => e.to === node.id && !e.link)!;
-    const legs = layout.edges.filter((e) => e.to === node.id || e.from === node.id);
-    const routed = legs.find((e) => view?.labels.has(e.id));
-    const value = routed ? view!.labels.get(routed.id) : edgeCost(up, options);
+  // Under the transfer and synchronous nodes, reading away from each other so they don't collide.
+  const subLabel = (n: LayoutNode, node: DvNode) => {
+    // The transfer's name reads toward the low orbit, the synchronous orbit's toward the capture.
+    const toward = layout.nodes.get(nodeId(node.body, node.kind === 'sync' ? 'capture' : 'low'))!;
+    const away = Math.sign(toward.col - n.col) || 1;
+    const text =
+      node.kind === 'sync'
+        ? `Sync ${Math.round(((syncOrbitRadius(node.body) ?? 0) - node.body.radius) / 1000).toLocaleString('en-US')} km`
+        : 'Transfer';
     return (
-      <text y={17}>
-        Sync {km} km ·{' '}
-        <tspan className={routed ? 'route-value' : 'sync-cost'}>
-          {value === null || value === undefined ? '—' : fmt(value)}
-        </tspan>
-        {detail && up.burns && (
-          <tspan x={0} dy={12} className="caption">
-            two burns from low orbit: {fmt(up.burns[0])} + {fmt(up.burns[1])}
-          </tspan>
-        )}
-        <title>
-          {routed
-            ? "This route's cost into or out of the synchronous orbit"
-            : `From low orbit: ${up.burns ? `${fmt(up.burns[0])} + ${fmt(up.burns[1])}` : fmt(up.dv)} m/s`}
-        </title>
+      <text y={17} x={away * -6} style={{ textAnchor: away < 0 ? 'end' : 'start' }}>
+        {text}
       </text>
     );
-  };
-
-  // What a connection is, and what it costs the other way (powered or with the atmosphere).
-  const caption = (e: DvEdge) => {
-    const a = graph.node(e.from);
-    const b = graph.node(e.to);
-    let what = '';
-    if (a.kind === 'surface') what = 'ascent';
-    else if (b.kind === 'surface') what = 'landing';
-    else if (a.kind === 'low' && b.kind === 'capture') what = 'escape';
-    else if (b.kind === 'low') what = 'circularize';
-    else if (b.kind === 'intercept') what = b.body.parent === a.body ? 'transfer' : 'ejection';
-    else if (b.kind === 'capture') what = a.from?.parent === b.body ? 'raise to escape' : 'capture';
-    const alt =
-      e.chuteDv !== undefined
-        ? options.chutes
-          ? `powered ${fmt(e.dv)}`
-          : `chutes ${fmt(e.chuteDv)}`
-        : e.aeroDv !== undefined
-          ? options.aerobrake
-            ? `powered ${fmt(e.dv)}`
-            : `aero ${fmt(e.aeroDv)}`
-          : '';
-    return alt ? `${what} · ${alt}` : what;
   };
 
   const edgeLabel = (e: DvEdge) => {
@@ -199,11 +170,16 @@ export function DeltaVView() {
     const override = view?.labels.get(e.id);
     const hasOverride = view?.labels.has(e.id) ?? false;
     const anchor = geometry(e).anchor;
-    // The synchronous orbit's legs are labelled under the sync node instead (see syncLabel).
-    if (layout.nodes.get(e.to)!.sub || layout.nodes.get(e.from)!.sub) return null;
+    // The link from the capture node to the synchronous orbit has no cost of its own.
+    if (e.link && !hasOverride) return null;
     return (
       <g key={`l-${e.id}`} className="dv-edge-label">
-        <text x={lx} y={ly - 7} textAnchor={anchor} className={hasOverride ? 'route-value' : undefined}>
+        <text
+          x={lx}
+          y={ly - 7}
+          style={anchor ? { textAnchor: anchor } : undefined}
+          className={hasOverride ? 'route-value' : undefined}
+        >
           {hasOverride ? (override === null ? '—' : fmt(override!)) : fmt(edgeCost(e, options))}
           {!hasOverride && e.aeroDv !== undefined && <tspan className="aero-mark">{aero ? ' ✓A' : ' A'}</tspan>}
           {!hasOverride && e.chuteDv !== undefined && <tspan className="aero-mark">{chute ? ' ✓P' : ' P'}</tspan>}
@@ -218,17 +194,11 @@ export function DeltaVView() {
                   ? `Parachutes possible: ${fmt(e.dv)} m/s powered landing, ${fmt(e.chuteDv)} m/s deorbit burn with parachutes`
                   : `${fmt(e.dv)} m/s`}
             {!hasOverride && e.source ? ` (${SOURCE_LABEL[e.source]})` : ''}
-            {!hasOverride && e.burns ? ` (burns: ${fmt(e.burns[0])} + ${fmt(e.burns[1])})` : ''}
           </title>
         </text>
-        {detail && !hasOverride && (
-          <text x={lx} y={ly + 13} className="caption">
-            {caption(e)}
-          </text>
-        )}
-        {!hasOverride && e.plane !== undefined && e.plane >= 5 && (!options.planeChanges || detail) && (
-          <text x={lx} y={ly + (detail ? 24 : 13)} className="plane">
-            {options.planeChanges ? `incl. ${fmt(e.plane)} plane` : `+${fmt(e.plane)} plane`}
+        {!hasOverride && e.plane !== undefined && e.plane >= 5 && !options.planeChanges && (
+          <text x={lx} y={ly + 13} className="plane">
+            +{fmt(e.plane)} plane
           </text>
         )}
       </g>
@@ -245,7 +215,7 @@ export function DeltaVView() {
         if (!(ev.target as Element).closest('.dv-node')) clear();
       }}
     >
-      <svg role="img" aria-label="Delta-v map" className={detail ? 'detail' : undefined}>
+      <svg role="img" aria-label="Delta-v map">
         <g transform={`translate(${pz.view.x},${pz.view.y}) scale(${pz.view.k})`}>
           {trunk && (
             <g className="dv-trunk">
@@ -340,7 +310,7 @@ export function DeltaVView() {
                   r={node.kind === 'surface' ? 7 : n.sub ? 4.5 : 5.5}
                   style={{ fill: node.body.data.style.color }}
                 />
-                {n.sub ? syncLabel(node) : <text y={20}>{shortLabel(node)}</text>}
+                {n.sub ? subLabel(n, node) : <text y={20}>{shortLabel(node)}</text>}
                 <title>{nodeLabel(node)}</title>
               </g>
             );
@@ -374,6 +344,8 @@ function shortLabel(n: DvNode): string {
       return 'Surface';
     case 'low':
       return 'Low orbit';
+    case 'syncTransfer':
+      return 'Transfer';
     case 'sync':
       return 'Synchronous';
     case 'capture':

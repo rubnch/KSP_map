@@ -81,10 +81,13 @@ describe('synchronous orbits', () => {
   });
 
   it('matches the community keostationary figures (680 + 435)', () => {
-    const e = g.edge('Kerbin:low', 'Kerbin:sync')!;
-    near(e.burns![0], 680, 3);
-    near(e.burns![1], 435, 3);
-    expect(cost('Kerbin:low', 'Kerbin:sync')).toBeCloseTo(e.dv);
+    near(cost('Kerbin:low', 'Kerbin:syncTransfer'), 680, 3);
+    near(cost('Kerbin:syncTransfer', 'Kerbin:sync'), 435, 3);
+    expect(findRoute(g, 'Kerbin:low', 'Kerbin:sync', plain)!.nodes).toEqual([
+      'Kerbin:low',
+      'Kerbin:syncTransfer',
+      'Kerbin:sync',
+    ]);
   });
 });
 
