@@ -65,7 +65,12 @@ export function PorkchopPanel({ origin, target }: { origin: Body; target: Body }
         const v = grid.dv[j * W + i]!;
         const o = ((H - 1 - j) * W + i) * 4; // row 0 (shortest flight) at the bottom
         if (!Number.isFinite(v)) {
-          img.data[o + 3] = 0;
+          // Hatched grey: no transfer here.
+          const c = (i + (H - 1 - j)) % 6 < 2 ? 92 : 46;
+          img.data[o] = c;
+          img.data[o + 1] = c;
+          img.data[o + 2] = c + 6;
+          img.data[o + 3] = 255;
           continue;
         }
         const f = 1 - Math.max(0, Math.min(1, (Math.log(v) - lo) / (hi - lo)));

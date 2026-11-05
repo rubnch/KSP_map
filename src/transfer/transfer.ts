@@ -269,13 +269,14 @@ export class TransferProblem {
     if (!alt) return vinf;
     const e = this.ejectionGeometry(vinfVec, vinf, alt);
     if (!e) return NaN;
-    return Math.sqrt(e.v0 * e.v0 + e.vp * e.vp - 2 * e.v0 * e.vp * Math.cos(e.inclination));
+    return Math.sqrt(e.v0 * e.v0 + e.vp * e.vp - 2 * e.v0 * e.vp * Math.cos(e.inclination)) + e.correctionDv;
   }
 
   /**
    * Hyperbolic ejection from a circular equatorial orbit: the periapsis must lie in the equator
-   * and the velocity at the SOI edge must point along v∞. Returns null if no such orbit exists.
-   * For a slow escape that only just reaches the SOI edge, the exit is taken at apoapsis.
+   * and the velocity at the SOI edge must point along v∞, or (when cheaper) the escape stays in
+   * the equator and v∞ is tilted by a small burn at the SOI edge. For a slow escape that only
+   * just reaches the SOI edge, the exit is taken at apoapsis.
    */
   private ejectionGeometry(vinfVec: Vec3, vinf: number, alt: number) {
     const body = this.origin;
@@ -293,13 +294,29 @@ export class TransferProblem {
     const theta = nu + zenith; // angle from periapsis to the exit velocity
     const u = normalize(vinfVec);
     const uh = Math.hypot(u[0], u[1]);
+    const escape = (inclination: number) => Math.sqrt(v0 * v0 + vp * vp - 2 * v0 * vp * Math.cos(inclination));
+    // Option 1, as in alexmoon's planner: an inclined escape whose periapsis is in the equator, θ
+    // from the exit direction. Impossible when v∞ is too steep for θ (|c| > 1), and very
+    // expensive when the exit points almost straight back at the periapsis (θ near 180°).
+    const az = Math.atan2(u[1], u[0]);
     const c = Math.cos(theta) / uh;
-    if (Math.abs(c) > 1) return null;
-    const phi = Math.atan2(u[1], u[0]) - Math.acos(c);
-    const periapsis: Vec3 = [Math.cos(phi), Math.sin(phi), 0];
-    const normal = normalize(cross(periapsis, u));
-    const inclination = Math.acos(Math.max(-1, Math.min(1, normal[2])));
-    return { v0, vp, periapsis, inclination, theta, u };
+    let inclined: { periapsis: Vec3; inclination: number; dv: number } | null = null;
+    if (Math.abs(c) <= 1) {
+      const phi = az - Math.acos(c);
+      const periapsis: Vec3 = [Math.cos(phi), Math.sin(phi), 0];
+      const n = cross(periapsis, u);
+      if (length(n) > 1e-12) {
+        const inclination = Math.acos(Math.max(-1, Math.min(1, normalize(n)[2])));
+        inclined = { periapsis, inclination, dv: escape(inclination) };
+      }
+    }
+    // Option 2: escape in the equator towards v∞'s heading, then a burn at the SOI edge that tilts
+    // v∞ up by its elevation. Always possible; cheaper for steep or near-180° exits.
+    const elevation = Math.asin(Math.min(1, Math.abs(u[2])));
+    const flat = { periapsis: [Math.cos(az - theta), Math.sin(az - theta), 0] as Vec3, inclination: 0 };
+    const flatDv = Math.abs(vp - v0) + 2 * vinf * Math.sin(elevation / 2);
+    const best = inclined && inclined.dv <= flatDv ? { ...inclined, correctionDv: 0 } : { ...flat, correctionDv: flatDv - Math.abs(vp - v0) };
+    return { v0, vp, theta, u, ...best };
   }
 
   /**
