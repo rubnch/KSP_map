@@ -53,13 +53,13 @@ export interface DvLayout {
   height: number;
 }
 
-/** Columns between the capture and low orbit nodes: wider than the rest, for the synchronous orbit's two nodes under it. */
-export const CAPTURE_GAP = 1.8;
+/** Columns between the capture and low orbit nodes: two, so rows with a transfer node between them line up with the rest. */
+export const CAPTURE_GAP = 2;
 
 /** Extra height, in rows, of a row with a synchronous orbit under it. */
-export const SUB_ROWS = 1.4;
+export const SUB_ROWS = 1.1;
 
-const ORDER: NodeKind[] = ['intercept', 'capture', 'low', 'surface'];
+const ORDER: NodeKind[] = ['intercept', 'capture', 'syncTransfer', 'low', 'surface'];
 
 /** The body a trip from the root arrives at `y` from: a sibling on the root's side, or y's parent. */
 function naturalOrigin(g: DvGraph, root: Body, y: Body): Body {
@@ -82,7 +82,9 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     if (b === home) {
       chains.set(
         b,
-        (['surface', 'low', 'capture'] as const).map((k) => nodeId(b, k)).filter((id) => g.nodes.has(id)),
+        (['surface', 'low', 'syncTransfer', 'capture'] as const)
+          .map((k) => nodeId(b, k))
+          .filter((id) => g.nodes.has(id)),
       );
       continue;
     }
@@ -128,7 +130,7 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     const sync = nodeId(b, 'sync');
     const lowIdx = shown.indexOf(nodeId(b, 'low'));
     const capIdx = shown.indexOf(nodeId(b, 'capture'));
-    const tall = lowIdx >= 0 && capIdx >= 0 && g.nodes.has(sync);
+    const tall = lowIdx >= 0 && capIdx >= 0 && shown.includes(nodeId(b, 'syncTransfer'));
     // The synchronous orbit's nodes sit above the row (higher orbits, higher up), so the row
     // itself moves down by their height.
     const r: LayoutRow = { body: b, y: cursor.y + (tall ? SUB_ROWS : 0), side, nodes: [], attach, tall };
@@ -139,8 +141,8 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
       minCol = Math.min(minCol, n.col);
       maxCol = Math.max(maxCol, n.col);
     };
-    // Columns from the trunk: one apart, except the wider gap between capture and low orbit (on
-    // every row, so the columns line up from row to row).
+    // Columns from the trunk: one apart; capture and low orbit are two apart, with the transfer
+    // node between them where there is one, so the columns line up from row to row.
     const cols: number[] = [];
     shown.forEach((_, i) => {
       const pair = i > 0 && [i - 1, i].every((j) => j === lowIdx || j === capIdx);
@@ -153,20 +155,16 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     });
     ids.forEach((id, i) => i > 0 && edges.push(g.edge(ids[i - 1]!, id)!));
     if (attach) edges.push(attach);
-    // Above the row, the two ways to a synchronous orbit: the high capture (periapsis at
-    // synchronous altitude) branching off before the capture node, then circularize; or the
-    // capture, the transfer ellipse down to the low orbit (also reached from the low orbit), then
-    // circularize. The synchronous orbit sits between the two.
+    // Above the row: the synchronous orbit, straight above the transfer node (one burn up), and
+    // the high capture (periapsis at synchronous altitude), branching off before the capture node.
     if (tall) {
       const high = nodeId(b, 'syncCapture');
       const xfer = nodeId(b, 'syncTransfer');
       const capCol = cols[capIdx]!;
-      const gap = cols[lowIdx]! - capCol;
+      const dir = Math.sign(cols[lowIdx]! - capCol);
       const y = r.y - SUB_ROWS;
-      put({ id: high, col: side * (capCol - 0.25 * Math.sign(gap)), y, sub: true });
-      put({ id: sync, col: side * (capCol + 0.45 * gap), y, sub: true });
-      // Right above the low orbit, so the climb from it is a straight line up.
-      put({ id: xfer, col: side * (capCol + gap - 0.15 * Math.sign(gap)), y, sub: true });
+      put({ id: high, col: side * (capCol - 0.25 * dir), y, sub: true });
+      put({ id: sync, col: side * cols[shown.indexOf(xfer)]!, y, sub: true });
       const before = shown[capIdx - 1];
       const intercept = before && g.node(before).kind === 'intercept' ? before : null;
       edges.push(
@@ -176,8 +174,6 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
       );
       edges.push(g.edge(high, sync)!);
       edges.push(g.edge(xfer, sync)!);
-      edges.push(g.edge(shown[capIdx]!, xfer)!);
-      edges.push(g.edge(shown[lowIdx]!, xfer)!);
     }
     // Outermost branch points first, so the connectors of inner nodes never cross rows.
     for (let i = shown.length - 1; i >= 0; i--) {
@@ -237,17 +233,23 @@ export function routeView(layout: DvLayout, routeNodes: string[], routeEdges: Dv
     adj.set(e.from, [...(adj.get(e.from) ?? []), e]);
     adj.set(e.to, [...(adj.get(e.to) ?? []), e]);
   }
+  // The map has a few loops (two ways up to a synchronous orbit), so it's a shortest path that
+  // prefers the nodes the route actually visits: free between two of them, one step otherwise.
+  const onRoute = new Set(routeNodes);
   const back = new Map<string, DvEdge>();
-  const seen = new Set([start]);
+  const dist = new Map([[start, 0]]);
   const queue = [start];
   while (queue.length) {
     const u = queue.shift()!;
     for (const e of adj.get(u) ?? []) {
       const v = e.from === u ? e.to : e.from;
-      if (seen.has(v)) continue;
-      seen.add(v);
+      const step = onRoute.has(u) && onRoute.has(v) ? 0 : 1;
+      const d = dist.get(u)! + step;
+      if (dist.has(v) && dist.get(v)! <= d) continue;
+      dist.set(v, d);
       back.set(v, e);
-      queue.push(v);
+      if (step === 0) queue.unshift(v);
+      else queue.push(v);
     }
   }
   const path: { edge: DvEdge; from: string; to: string }[] = [];

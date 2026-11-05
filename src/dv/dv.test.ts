@@ -6,7 +6,7 @@ import {
   DvGraph,
   findRoute,
   layoutDvMap,
-  legLabel,
+  routeLegs,
   routeView,
   vacuumAscent,
   type DvOptions,
@@ -156,7 +156,7 @@ describe('layout', () => {
     const back = findRoute(g, 'Eeloo:surface', 'Kerbin:surface', plain)!;
     const a = routeView(layout, out.nodes, out.edges, plain);
     const b = routeView(layout, back.nodes, back.edges, plain);
-    expect(a.edges.size).toBe(6);
+    expect(a.edges.size).toBe(8);
     expect(a.labels.size).toBe(0);
     expect([...b.edges].sort()).toEqual([...a.edges].sort());
     expect(back.total).toBeCloseTo(out.total, 6);
@@ -188,7 +188,7 @@ describe('layout', () => {
   it('describes return legs as the burns they are', () => {
     const o = { aerobrake: true, chutes: true, planeChanges: false };
     const back = findRoute(g, 'Eeloo:surface', 'Kerbin:surface', o)!;
-    expect(back.edges.map((e) => legLabel(g, e, o))).toEqual([
+    expect(routeLegs(g, back.edges, o).map((l) => l.label)).toEqual([
       'Launch to Eeloo low orbit',
       'Escape burn at Eeloo',
       'Eject from Eeloo toward Kerbin',

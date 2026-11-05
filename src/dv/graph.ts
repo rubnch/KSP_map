@@ -134,9 +134,13 @@ export class DvGraph {
     const low = nodeId(b, 'low');
     const cap = nodeId(b, 'capture');
     const escape = escapeSpeed(b.mu, r) - circularSpeed(b.mu, r);
-    this.addEdge({ from: low, to: cap, dv: escape });
-    this.addEdge({ from: cap, to: low, dv: escape, aeroDv: atm ? 0 : undefined });
     const rSync = syncOrbitRadius(b);
+    // With a synchronous orbit, the escape is split at the transfer ellipse (below): the same
+    // periapsis burn, stopped halfway.
+    if (!rSync) {
+      this.addEdge({ from: low, to: cap, dv: escape });
+      this.addEdge({ from: cap, to: low, dv: escape, aeroDv: atm ? 0 : undefined });
+    }
     if (rSync) {
       // Hohmann from the low orbit up to the synchronous orbit: one burn onto the transfer
       // ellipse (periapsis at low orbit, apoapsis at synchronous altitude), one to circularize.
@@ -152,7 +156,7 @@ export class DvGraph {
       // From the capture orbit (periapsis at low orbit, apoapsis at the SOI edge), the transfer
       // ellipse is one burn at periapsis away: lower the apoapsis to synchronous altitude.
       const vEsc = escapeSpeed(b.mu, r);
-      this.addEdge({ from: cap, to: xfer, dv: vEsc - v1 });
+      this.addEdge({ from: cap, to: xfer, dv: vEsc - v1, aeroDv: atm ? 0 : undefined });
       this.addEdge({ from: xfer, to: cap, dv: vEsc - v1 });
       // The high capture orbit: periapsis at synchronous altitude, apoapsis at the SOI edge.
       // One burn at periapsis circularizes into the synchronous orbit.
@@ -323,6 +327,26 @@ export const shortKindLabel: Record<NodeKind, string> = {
   capture: 'Capture',
   intercept: 'Intercept',
 };
+
+/**
+ * A route's legs as the burns a pilot does: a pass through the transfer ellipse between the low
+ * orbit and the capture node (the escape burn split in two on the map) is one burn.
+ */
+export function routeLegs(g: DvGraph, edges: DvEdge[], o: DvOptions): { label: string; dv: number; id: string }[] {
+  const out: { label: string; dv: number; id: string }[] = [];
+  for (let i = 0; i < edges.length; i++) {
+    const e = edges[i]!;
+    const next = edges[i + 1];
+    const ends = (id: string) => ['low', 'capture'].includes(g.node(id).kind);
+    if (next && g.node(e.to).kind === 'syncTransfer' && ends(e.from) && ends(next.to)) {
+      const aero = e.aeroDv !== undefined || next.aeroDv !== undefined ? 0 : undefined;
+      const joined: DvEdge = { id: `${e.id}+${next.id}`, from: e.from, to: next.to, dv: e.dv + next.dv, aeroDv: aero };
+      out.push({ label: legLabel(g, joined, o), dv: edgeCost(e, o) + edgeCost(next, o), id: joined.id });
+      i++;
+    } else out.push({ label: legLabel(g, e, o), dv: edgeCost(e, o), id: e.id });
+  }
+  return out;
+}
 
 /** What a leg of a route actually is, described as the burn (or the aerobrake) it stands for. */
 export function legLabel(g: DvGraph, e: DvEdge, o: DvOptions): string {

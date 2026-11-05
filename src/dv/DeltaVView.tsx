@@ -5,7 +5,7 @@ import {
   DvGraph,
   edgeCost,
   findRoute,
-  legLabel,
+  routeLegs,
   nodeId,
   nodeLabel,
   type DvEdge,
@@ -19,8 +19,6 @@ import { usePanZoom } from './panzoom.ts';
 import { useDvStore, type DvSettings } from './store.ts';
 
 const COL = 98;
-/** Half-width of the transfer node's station, px. */
-const STATION = 14;
 const ROW = 52;
 const PAD_X = 28;
 const PAD_Y = 56;
@@ -128,45 +126,14 @@ export function DeltaVView() {
     const b = pos(layout.nodes.get(e.to)!);
     const an = layout.nodes.get(e.from)!;
     const bn = layout.nodes.get(e.to)!;
-    // Above the row: between two nodes up there, straight across, with the number under the line
-    // (their names sit above them). The transfer node is a wide station with a port at each end: the climb from the low orbit
-    // goes straight up into the end above it; the one from the capture node goes up, across
-    // (below the synchronous orbit's line) and up into the other end. Two lines, two numbers.
-    const kind = (n: LayoutNode) => graph.node(n.id).kind;
+    // Above the row: between the two nodes up there, straight across, with the number under the
+    // line (their names sit above them).
     const lowX = (n: LayoutNode) => pos(layout.nodes.get(nodeId(graph.node(n.id).body, 'low'))!).x;
-    const port = (n: LayoutNode, p: { x: number; y: number }, from: 'low' | 'other') => {
-      const toward = Math.sign(lowX(n) - p.x) || 1;
-      return { x: from === 'low' ? lowX(n) : p.x - toward * STATION, y: p.y };
-    };
     if (an.sub && bn.sub) {
-      const pa = kind(an) === 'syncTransfer' ? port(an, a, 'other') : a;
-      const pb = kind(bn) === 'syncTransfer' ? port(bn, b, 'other') : b;
-      return { d: `M${pa.x},${pa.y} H${pb.x}`, lx: (pa.x + pb.x) / 2, ly: b.y + 20, anchor: undefined, a: pa, b: pb };
+      return { d: `M${a.x},${a.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y + 20, anchor: undefined, a, b };
     }
-    if ((bn.sub && kind(bn) === 'syncTransfer') || (an.sub && kind(an) === 'syncTransfer')) {
-      const rowN = bn.sub ? an : bn;
-      const top = bn.sub ? a : b;
-      const st = bn.sub ? b : a;
-      if (kind(rowN) === 'low') {
-        const d = `M${top.x},${top.y} V${st.y}`;
-        const out = Math.sign(top.x - st.x) || 1;
-        return {
-          d,
-          lx: top.x + out * 6,
-          ly: (top.y + st.y) / 2 + 11,
-          anchor: (out < 0 ? 'end' : 'start') as 'end' | 'start',
-          a: top,
-          b: { x: top.x, y: st.y },
-        };
-      }
-      const p = port(bn.sub ? bn : an, st, 'other');
-      const mid = (top.y + st.y) / 2;
-      const d = `M${top.x},${top.y} V${mid} H${p.x} V${p.y}`;
-      return { d, lx: (top.x + p.x) / 2, ly: mid + 20, anchor: undefined, a: top, b: p };
-    }
-    // Other climbs (into the high capture): from the row node along the row to the spot below,
-    // then straight up, with the number halfway up on the outer side (away from the capture's
-    // climb to the transfer).
+    // Climbs from the row: along the row to the spot below, then straight up, with the number
+    // halfway up on the side away from the low orbit.
     if (bn.sub || an.sub) {
       const top = bn.sub ? a : b;
       const sub = bn.sub ? b : a;
@@ -342,21 +309,10 @@ export function DeltaVView() {
                 onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && pick(n.id)}
               >
                 <circle r={13} className="hit" />
-                {node.kind === 'syncTransfer' ? (
-                  <rect
-                    x={-STATION - 4.5}
-                    y={-4.5}
-                    width={2 * STATION + 9}
-                    height={9}
-                    rx={4.5}
-                    style={{ fill: node.body.data.style.color }}
-                  />
-                ) : (
-                  <circle
-                    r={node.kind === 'surface' ? 7 : n.sub ? 4.5 : 5.5}
-                    style={{ fill: node.body.data.style.color }}
-                  />
-                )}
+                <circle
+                  r={node.kind === 'surface' ? 7 : n.sub ? 4.5 : 5.5}
+                  style={{ fill: node.body.data.style.color }}
+                />
                 {n.sub ? subLabel(node) : <text y={20}>{shortLabel(node)}</text>}
                 <title>{nodeLabel(node)}</title>
               </g>
@@ -420,10 +376,10 @@ export function DvPanel() {
   const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > 720);
   const { route, back, total } = useRoutes(graph, options);
   const legs = (r: Route) =>
-    r.edges.map((e) => (
-      <li key={e.id}>
-        <span>{legLabel(graph, e, options)}</span>
-        <span className="num">{fmt(edgeCost(e, options))}</span>
+    routeLegs(graph, r.edges, options).map((leg) => (
+      <li key={leg.id}>
+        <span>{leg.label}</span>
+        <span className="num">{fmt(leg.dv)}</span>
       </li>
     ));
   const showOnMap = () => {
