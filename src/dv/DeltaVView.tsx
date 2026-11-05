@@ -124,9 +124,9 @@ export function DeltaVView() {
     const b = pos(layout.nodes.get(e.to)!);
     const an = layout.nodes.get(e.from)!;
     const bn = layout.nodes.get(e.to)!;
-    // Under the row: from the row node along the row to the spot above, then straight down, with
-    // the number low beside the drop, on the inner side. Between the two sub nodes: straight
-    // across, with the number under the line (their names read outwards, away from it).
+    // Above the row: from the row node along the row to the spot below, then straight up, with
+    // the number halfway up beside the climb, away from the row node. Between two nodes up there:
+    // straight across, with the number under the line (their names sit above them).
     if (an.sub && bn.sub) {
       return { d: `M${a.x},${a.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y + 20, anchor: undefined, a, b };
     }
@@ -134,9 +134,9 @@ export function DeltaVView() {
       const top = bn.sub ? a : b;
       const sub = bn.sub ? b : a;
       const d = bn.sub ? `M${a.x},${a.y} H${b.x} V${b.y}` : `M${a.x},${a.y} V${b.y} H${b.x}`;
-      const inner = top.x < sub.x ? 1 : -1;
+      const inner = top.x < sub.x ? -1 : 1;
       const anchor = (inner < 0 ? 'end' : 'start') as 'end' | 'start';
-      return { d, lx: sub.x + inner * 6, ly: sub.y - 1, anchor, a, b };
+      return { d, lx: sub.x + inner * 6, ly: (top.y + sub.y) / 2 + 11, anchor, a, b };
     }
     // Transfers from home leave from the trunk, where the home branch joins it.
     if (trunkEdge(e)) {
@@ -147,21 +147,14 @@ export function DeltaVView() {
     return { d: `M${a.x},${a.y} V${b.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y, anchor: undefined, a, b };
   };
 
-  // Under the transfer and synchronous nodes, reading away from each other so they don't collide.
-  const subLabel = (n: LayoutNode, node: DvNode) => {
-    // The transfer's name reads toward the low orbit, the synchronous orbit's toward the capture.
-    const toward = layout.nodes.get(nodeId(node.body, node.kind === 'sync' ? 'capture' : 'low'))!;
-    const away = Math.sign(toward.col - n.col) || 1;
-    const text =
-      node.kind === 'sync'
+  // Names above the nodes over the row.
+  const subLabel = (node: DvNode) => (
+    <text y={-11}>
+      {node.kind === 'sync'
         ? `Sync ${Math.round(((syncOrbitRadius(node.body) ?? 0) - node.body.radius) / 1000).toLocaleString('en-US')} km`
-        : 'Transfer';
-    return (
-      <text y={17} x={away * -6} style={{ textAnchor: away < 0 ? 'end' : 'start' }}>
-        {text}
-      </text>
-    );
-  };
+        : shortLabel(node)}
+    </text>
+  );
 
   const edgeLabel = (e: DvEdge) => {
     const { lx, ly } = geometry(e);
@@ -310,7 +303,7 @@ export function DeltaVView() {
                   r={node.kind === 'surface' ? 7 : n.sub ? 4.5 : 5.5}
                   style={{ fill: node.body.data.style.color }}
                 />
-                {n.sub ? subLabel(n, node) : <text y={20}>{shortLabel(node)}</text>}
+                {n.sub ? subLabel(node) : <text y={20}>{shortLabel(node)}</text>}
                 <title>{nodeLabel(node)}</title>
               </g>
             );
@@ -348,6 +341,8 @@ function shortLabel(n: DvNode): string {
       return 'Transfer';
     case 'sync':
       return 'Synchronous';
+    case 'syncCapture':
+      return 'High capture';
     case 'capture':
       return 'Capture';
     case 'intercept':

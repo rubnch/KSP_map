@@ -68,12 +68,10 @@ export function usePanZoom(
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const r = el.getBoundingClientRect();
-      // Pinch on a trackpad arrives as a wheel with ctrl; plain scrolling pans.
-      if (e.ctrlKey || e.deltaMode !== 0 || Math.abs(e.deltaY) >= 50) {
-        zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.002)));
-      } else {
-        setView((v) => ({ ...v, x: v.x - e.deltaX, y: v.y - e.deltaY }));
-      }
+      // The wheel always zooms (dragging pans). Lines and pages are turned into pixels first;
+      // a trackpad pinch arrives as a ctrl-wheel with small steps, so it gets a stronger factor.
+      const px = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
+      zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-px * (e.ctrlKey ? 0.015 : 0.005)));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);

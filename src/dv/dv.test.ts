@@ -173,10 +173,16 @@ describe('layout', () => {
     expect(v.shortcuts).toHaveLength(1);
   });
 
-  it('captures straight into a synchronous orbit, without going through the capture node', () => {
+  it('reaches a synchronous orbit through the high capture, cheaper than via the low capture', () => {
     const r = findRoute(g, 'Duna:low', 'Kerbin:sync', plain)!;
-    expect(r.nodes).not.toContain('Kerbin:capture');
-    expect(r.nodes.at(-2)).toBe('Kerbin:intercept:Duna');
+    expect(r.nodes.slice(-3)).toEqual(['Kerbin:intercept:Duna', 'Kerbin:syncCapture', 'Kerbin:sync']);
+    const viaLow =
+      cost('Kerbin:intercept:Duna', 'Kerbin:capture') +
+      cost('Kerbin:capture', 'Kerbin:syncTransfer') +
+      cost('Kerbin:syncTransfer', 'Kerbin:sync');
+    expect(cost('Kerbin:intercept:Duna', 'Kerbin:sync')).toBeLessThan(viaLow);
+    near(cost('Kerbin:intercept:Duna', 'Kerbin:sync'), 688, 5);
+    near(viaLow, 836, 5);
   });
 
   it('describes return legs as the burns they are', () => {

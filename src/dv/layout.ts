@@ -129,7 +129,9 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     const lowIdx = shown.indexOf(nodeId(b, 'low'));
     const capIdx = shown.indexOf(nodeId(b, 'capture'));
     const tall = lowIdx >= 0 && capIdx >= 0 && g.nodes.has(sync);
-    const r: LayoutRow = { body: b, y: cursor.y, side, nodes: [], attach, tall };
+    // The synchronous orbit's nodes sit above the row (higher orbits, higher up), so the row
+    // itself moves down by their height.
+    const r: LayoutRow = { body: b, y: cursor.y + (tall ? SUB_ROWS : 0), side, nodes: [], attach, tall };
     rows.push(r);
     cursor.y += 1 + (tall ? SUB_ROWS : 0);
     const put = (n: LayoutNode) => {
@@ -151,17 +153,30 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     });
     ids.forEach((id, i) => i > 0 && edges.push(g.edge(ids[i - 1]!, id)!));
     if (attach) edges.push(attach);
-    // Under the row, between the low orbit and the capture node: the transfer ellipse on the low
-    // orbit's side (launches climb through it), the synchronous orbit on the capture's side
-    // (arrivals capture straight into it).
+    // Above the row, the two ways to a synchronous orbit: the high capture (periapsis at
+    // synchronous altitude) branching off before the capture node, then circularize; or the
+    // capture, the transfer ellipse down to the low orbit (also reached from the low orbit), then
+    // circularize. The synchronous orbit sits between the two.
     if (tall) {
+      const high = nodeId(b, 'syncCapture');
       const xfer = nodeId(b, 'syncTransfer');
-      const at = (f: number) => side * (cols[lowIdx]! + (cols[capIdx]! - cols[lowIdx]!) * f);
-      put({ id: xfer, col: at(0.25), y: r.y + SUB_ROWS, sub: true });
-      put({ id: sync, col: at(0.75), y: r.y + SUB_ROWS, sub: true });
-      edges.push(g.edge(shown[lowIdx]!, xfer)!);
+      const capCol = cols[capIdx]!;
+      const gap = cols[lowIdx]! - capCol;
+      const y = r.y - SUB_ROWS;
+      put({ id: high, col: side * (capCol - 0.25 * Math.sign(gap)), y, sub: true });
+      put({ id: sync, col: side * (capCol + 0.32 * gap), y, sub: true });
+      put({ id: xfer, col: side * (capCol + 0.72 * gap), y, sub: true });
+      const before = shown[capIdx - 1];
+      const intercept = before && g.node(before).kind === 'intercept' ? before : null;
+      edges.push(
+        intercept
+          ? g.edge(intercept, high)!
+          : { id: `${shown[capIdx]}->${high}`, from: shown[capIdx]!, to: high, dv: 0, link: true },
+      );
+      edges.push(g.edge(high, sync)!);
       edges.push(g.edge(xfer, sync)!);
-      edges.push({ id: `${shown[capIdx]}->${sync}`, from: shown[capIdx]!, to: sync, dv: 0, link: true });
+      edges.push(g.edge(shown[capIdx]!, xfer)!);
+      edges.push(g.edge(shown[lowIdx]!, xfer)!);
     }
     // Outermost branch points first, so the connectors of inner nodes never cross rows.
     for (let i = shown.length - 1; i >= 0; i--) {

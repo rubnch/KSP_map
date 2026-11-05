@@ -31,7 +31,7 @@ import {
   type AscentSource,
 } from './physics.ts';
 
-export type NodeKind = 'surface' | 'low' | 'syncTransfer' | 'sync' | 'capture' | 'intercept';
+export type NodeKind = 'surface' | 'low' | 'syncTransfer' | 'sync' | 'syncCapture' | 'capture' | 'intercept';
 
 export interface DvNode {
   id: string;
@@ -75,13 +75,6 @@ export function edgeCost(e: DvEdge, o: DvOptions): number {
   return base + (o.planeChanges && e.plane ? e.plane : 0);
 }
 
-/** One burn between a circular synchronous orbit and a hyperbola with excess speed vInf; null if there's no such orbit. */
-function syncBurn(b: Body, vInf: number): number | null {
-  const r = syncOrbitRadius(b);
-  if (!r) return null;
-  return Math.sqrt(vInf * vInf + escapeSpeed(b.mu, r) ** 2) - circularSpeed(b.mu, r);
-}
-
 export class DvGraph {
   readonly system: PlanetarySystem;
   readonly nodes = new Map<string, DvNode>();
@@ -98,6 +91,7 @@ export class DvGraph {
       if (syncOrbitRadius(b)) {
         this.addNode(b, 'syncTransfer');
         this.addNode(b, 'sync');
+        this.addNode(b, 'syncCapture');
       }
     }
     for (const b of bodies) this.addBodyEdges(b, ascentOverrides[b.id]);
@@ -155,8 +149,17 @@ export class DvGraph {
       this.addEdge({ from: xfer, to: low, dv: raise, aeroDv: atm ? 0 : undefined });
       this.addEdge({ from: xfer, to: sync, dv: circ });
       this.addEdge({ from: sync, to: xfer, dv: circ });
-      // Transfers leave from and arrive at the synchronous orbit directly (see syncBurn), never
-      // through the capture node, whose periapsis is down at the low orbit.
+      // From the capture orbit (periapsis at low orbit, apoapsis at the SOI edge), the transfer
+      // ellipse is one burn at periapsis away: lower the apoapsis to synchronous altitude.
+      const vEsc = escapeSpeed(b.mu, r);
+      this.addEdge({ from: cap, to: xfer, dv: vEsc - v1 });
+      this.addEdge({ from: xfer, to: cap, dv: vEsc - v1 });
+      // The high capture orbit: periapsis at synchronous altitude, apoapsis at the SOI edge.
+      // One burn at periapsis circularizes into the synchronous orbit.
+      const high = nodeId(b, 'syncCapture');
+      const circHigh = escapeSpeed(b.mu, rSync) - circularSpeed(b.mu, rSync);
+      this.addEdge({ from: high, to: sync, dv: circHigh });
+      this.addEdge({ from: sync, to: high, dv: circHigh });
     }
     if (hasSurface(b)) {
       const surf = nodeId(b, 'surface');
@@ -219,15 +222,18 @@ export class DvGraph {
       dv: excessBurn(body.mu, lowOrbitRadius(body), vInf),
       aeroDv: hasAtmosphere(body) ? 0 : undefined,
     });
-    // Arrive with the periapsis at the synchronous altitude and capture straight into it.
-    const burn = syncBurn(body, vInf);
-    if (burn !== null) this.addEdge({ from: intercept, to: nodeId(body, 'sync'), dv: burn });
+    // Or arrive with the periapsis at synchronous altitude: the high capture.
+    const rSync = syncOrbitRadius(body);
+    if (rSync) this.addEdge({ from: intercept, to: nodeId(body, 'syncCapture'), dv: excessBurn(body.mu, rSync, vInf) });
   }
 
-  /** Eject straight from the synchronous orbit (one burn there, Oberth at that altitude). */
+  /** Leave from the high capture orbit (periapsis at synchronous altitude): the way out of a synchronous orbit. */
   private addSyncDeparture(body: Body, intercept: string, vInf: number, plane: number) {
-    const burn = syncBurn(body, vInf);
-    if (burn !== null) this.addEdge({ from: nodeId(body, 'sync'), to: intercept, dv: burn, plane });
+    const rSync = syncOrbitRadius(body);
+    if (rSync) {
+      const dv = excessBurn(body.mu, rSync, vInf);
+      this.addEdge({ from: nodeId(body, 'syncCapture'), to: intercept, dv, plane });
+    }
   }
 }
 
@@ -297,6 +303,8 @@ export function nodeLabel(n: DvNode): string {
       return `${n.body.name} synchronous transfer (${Math.round(lowOrbitAltitude(n.body) / 1000)} × ${fmtKm(syncOrbitRadius(n.body)! - n.body.radius)})`;
     case 'sync':
       return `${n.body.name} synchronous orbit (${fmtKm(syncOrbitRadius(n.body)! - n.body.radius)})`;
+    case 'syncCapture':
+      return `${n.body.name} high capture (periapsis at ${fmtKm(syncOrbitRadius(n.body)! - n.body.radius)})`;
     case 'capture':
       return `${n.body.name} capture / escape`;
     case 'intercept':
@@ -311,6 +319,7 @@ export const shortKindLabel: Record<NodeKind, string> = {
   low: 'Low orbit',
   syncTransfer: 'Transfer',
   sync: 'Synchronous',
+  syncCapture: 'High capture',
   capture: 'Capture',
   intercept: 'Intercept',
 };
@@ -325,13 +334,16 @@ export function legLabel(g: DvGraph, e: DvEdge, o: DvOptions): string {
   const B = b.body.name;
   if (a.kind === 'surface') return `Launch to ${B} low orbit`;
   if (b.kind === 'surface') return chutes ? `Deorbit and parachute to ${B} surface` : `Land on ${B}`;
-  if (a.kind === 'intercept' && b.kind === 'sync') return `Capture into ${B} synchronous orbit`;
+  if (a.kind === 'intercept' && b.kind === 'syncCapture')
+    return `Capture at ${B} with periapsis at synchronous altitude`;
+  if (a.kind === 'sync' && b.kind === 'syncCapture') return `Raise apoapsis to escape at ${B} synchronous orbit`;
+  if (a.kind === 'capture' && b.kind === 'syncTransfer') return `Lower apoapsis at ${B} to synchronous altitude`;
+  if (a.kind === 'syncTransfer' && b.kind === 'capture') return `Raise apoapsis to escape at ${B}`;
   if (a.kind === 'low' && b.kind === 'syncTransfer') return `Raise apoapsis to ${B} synchronous altitude`;
   if (b.kind === 'sync') return `Circularize at ${B} synchronous orbit`;
   if (a.kind === 'sync' && b.kind === 'syncTransfer') return `Lower periapsis to ${B} low orbit`;
   if (a.kind === 'syncTransfer' && b.kind === 'low')
     return aero ? `Aerobrake into ${B} low orbit` : `Circularize at ${B} low orbit`;
-  if (a.kind === 'sync') return `Eject from ${A} synchronous orbit toward ${B}`;
   if (a.kind === 'low' && b.kind === 'capture') return `Escape burn at ${A}`;
   if (a.kind === 'capture' && b.kind === 'low')
     return aero ? `Aerobrake into ${B} low orbit` : `Circularize at ${B} low orbit`;
