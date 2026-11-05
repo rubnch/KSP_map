@@ -463,7 +463,7 @@ export function DeltaVView() {
               const y = pos(homeCap).y + 4;
               const ix = trunkX + (homeCap.col - Math.sign(homeCap.col)) * COL;
               return (
-                <g className="dv-edge-label">
+                <g className={`dv-edge-label${light(star.data.style.color) ? ' ink' : ''}`}>
                   <Pill x={(trunkX + ix) / 2} y={y - 4} text={fmt(preview.get('home-eject')!)} />
                   <text x={(trunkX + ix) / 2} y={y} className="route-value">
                     {fmt(preview.get('home-eject')!)}
