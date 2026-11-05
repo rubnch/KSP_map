@@ -13,6 +13,17 @@ export interface OrbitMarker {
   altitude?: number;
   /** Position relative to the body's parent, metres. */
   position: Vec3;
+  /** A node that falls on (or next to) this apsis, shown in the same label instead of on its own. */
+  node?: { kind: 'an' | 'dn'; label: string };
+}
+
+/** A node within this angle of an apsis is merged into the apsis' label. */
+const MERGE_ANGLE = 12 * (Math.PI / 180);
+
+/** Smallest angle between two angles, radians. */
+function angleBetween(a: number, b: number): number {
+  const d = Math.abs(a - b) % (2 * Math.PI);
+  return Math.min(d, 2 * Math.PI - d);
 }
 
 /**
@@ -34,13 +45,20 @@ export function orbitMarkers(body: Body): OrbitMarker[] {
     altitude,
     position,
   });
-  const out = [
-    marker('pe', 'Pe', o.positionAtTrueAnomaly(0), o.periapsis - parent.radius),
-    marker('ap', 'Ap', o.positionAtTrueAnomaly(Math.PI), o.apoapsis - parent.radius),
-  ];
+  const pe = marker('pe', 'Pe', o.positionAtTrueAnomaly(0), o.periapsis - parent.radius);
+  const ap = marker('ap', 'Ap', o.positionAtTrueAnomaly(Math.PI), o.apoapsis - parent.radius);
+  const out = [pe, ap];
   if (o.i > 1e-4) {
-    out.push(marker('an', 'AN', o.positionAtTrueAnomaly(-o.argPe)));
-    out.push(marker('dn', 'DN', o.positionAtTrueAnomaly(Math.PI - o.argPe)));
+    const nodes = [
+      { kind: 'an' as const, label: 'AN', nu: -o.argPe },
+      { kind: 'dn' as const, label: 'DN', nu: Math.PI - o.argPe },
+    ];
+    for (const n of nodes) {
+      // Many orbits have their periapsis at a node (argument of periapsis 0° or 180°): one label.
+      const apsis = angleBetween(n.nu, 0) < MERGE_ANGLE ? pe : angleBetween(n.nu, Math.PI) < MERGE_ANGLE ? ap : null;
+      if (apsis) apsis.node = { kind: n.kind, label: n.label };
+      else out.push(marker(n.kind, n.label, o.positionAtTrueAnomaly(n.nu)));
+    }
   }
   return out;
 }

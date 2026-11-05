@@ -31,12 +31,13 @@ export function LabelsOverlay() {
         <div
           key={`${focusId}-${m.key}`}
           ref={(el) => void (el ? markerElements.set(m.key, el) : markerElements.delete(m.key))}
-          className={`orbit-marker marker-${m.kind}`}
+          className={`orbit-marker marker-${m.kind}${m.node ? ' has-node' : ''}`}
           style={{ display: 'none' }}
         >
           <span className="tick" />
           <span className="text">
             {m.label}
+            {m.node && <span className={`marker-${m.node.kind}`}> · {m.node.label}</span>}
             {m.altitude !== undefined && <small>{formatDistance(m.altitude)}</small>}
           </span>
         </div>
