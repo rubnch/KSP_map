@@ -600,12 +600,6 @@ button {
   stroke: rgba(255, 255, 255, 0.55);
   stroke-width: 1;
 }
-/* On light lines (the star's yellow, white bodies) the tag is drawn dark instead. */
-.dv-edge-label.ink .dv-pill {
-  fill: rgba(0, 0, 0, 0.12);
-  stroke: rgba(0, 0, 0, 0.6);
-  stroke-width: 1.2;
-}
 .dv-node.via text {
   fill: var(--text);
 }
