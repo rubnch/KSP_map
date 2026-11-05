@@ -146,14 +146,17 @@ function useRoutes(graph: DvGraph, options: DvOptions) {
 /** The delta-v map: a subway diagram generated from the loaded system, plus the route panel. */
 export function DeltaVView() {
   const { graph } = useDvGraph();
-  const options = useOptions();
+  // The map always reads without plane changes (they show as +N under each transfer); the
+  // setting only changes what the route panel counts.
+  const routeOptions = useOptions();
+  const options = useMemo(() => ({ ...routeOptions, planeChanges: false }), [routeOptions]);
   const from = useDvStore((s) => s.from);
   const to = useDvStore((s) => s.to);
   const pick = useDvStore((s) => s.pick);
   const clear = useDvStore((s) => s.clear);
   const layout = useMemo(() => layoutDvMap(graph), [graph]);
   const roundTrip = useDvStore((s) => s.roundTrip);
-  const { route } = useRoutes(graph, options);
+  const { route } = useRoutes(graph, routeOptions);
   const view = useMemo(
     () => (route ? routeView(layout, route.nodes, route.edges, options) : null),
     [graph, layout, route, options],
@@ -428,7 +431,7 @@ export function DeltaVView() {
             {!hasOverride && e.source ? ` (${SOURCE_LABEL[e.source]})` : ''}
           </title>
         </text>
-        {plane !== undefined && plane >= 0.5 && !options.planeChanges && (
+        {plane !== undefined && plane >= 0.5 && (
           <text
             x={g.vertical ? g.lx + g.out * 12 : g.lx}
             y={g.vertical ? g.ly + 4 : g.ly - 12}
@@ -506,13 +509,11 @@ export function DeltaVView() {
                     {fmt(preview.get('home-eject')!)}
                     <title>Ejection toward {graph.system.home.name}</title>
                   </text>
-                  {solar.planes.get('home-eject') !== undefined &&
-                    solar.planes.get('home-eject')! >= 0.5 &&
-                    !options.planeChanges && (
-                      <text x={(trunkX + ix) / 2} y={y - 16} className="plane">
-                        +{fmt(solar.planes.get('home-eject')!)} plane
-                      </text>
-                    )}
+                  {solar.planes.get('home-eject') !== undefined && solar.planes.get('home-eject')! >= 0.5 && (
+                    <text x={(trunkX + ix) / 2} y={y - 16} className="plane">
+                      +{fmt(solar.planes.get('home-eject')!)} plane
+                    </text>
+                  )}
                   <Pill x={(ix + pos(homeCap).x) / 2} y={y - 4} text={fmt(preview.get('home-capture')!)} />
                   <text x={(ix + pos(homeCap).x) / 2} y={y} className="route-value">
                     {fmt(preview.get('home-capture')!)}
@@ -554,7 +555,7 @@ export function DeltaVView() {
                     <title>{`From ${departure ? nodeLabel(graph.node(departure)) : `${graph.system.home.name}'s surface`} to ${r.body.name}'s ${land.orbitOnly ? 'low orbit' : 'surface'}${roundTrip ? ' and back' : ''}, with the calculator settings, m/s`}</title>
                   </text>
                 )}
-                {land && !options.planeChanges && land.worst - land.total >= 5 && (
+                {land && land.worst - land.total >= 5 && (
                   <text x={nameX} y={p.y + 35} className="dv-land worst">
                     {fmt(land.worst)}
                     <title>Worst case, with the plane changes included, m/s</title>
@@ -825,7 +826,7 @@ const SETTINGS: { key: keyof DvSettings; label: string; hint: string }[] = [
   {
     key: 'planeChanges',
     label: 'Plane changes',
-    hint: 'Worst case: the full inclination gap, burned at the slowest point.',
+    hint: 'The route counts the worst case (full inclination gap, burned at the slowest point). The map keeps showing them as +N.',
   },
   {
     key: 'sync',
