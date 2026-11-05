@@ -257,6 +257,7 @@ export function DeltaVView() {
   const trunkYs = layout.edges.filter(trunkEdge).map((e) => pos(layout.nodes.get(e.to)!).y);
   const homeCap = layout.nodes.get(nodeId(graph.system.home, 'capture'));
   if (homeCap) trunkYs.push(pos(homeCap).y);
+  const starRow = layout.rows.find((r) => r.vertical);
   const trunk = trunkYs.length > 1 ? { top: Math.min(...trunkYs), bottom: Math.max(...trunkYs) } : null;
   const height = PAD_Y * 2 + (layout.height - 1) * ROW;
   const box = useRef<HTMLDivElement>(null);
@@ -318,9 +319,13 @@ export function DeltaVView() {
     // Transfers from home leave from the trunk, where the home branch joins it.
     if (trunkEdge(e)) {
       const t = { x: trunkX, y: a.y };
+      // Up the trunk to the star's row: the number just under the star's intercept.
+      if (b.x === trunkX) return { ...flat([t, b], b.x, b.y + ROW / 2, t, b), vertical: true };
       return flat([t, { x: t.x, y: b.y }, b], (t.x + b.x) / 2, b.y, t, b);
     }
     if (an.y === bn.y) return flat([a, b], (a.x + b.x) / 2, b.y);
+    // Straight up or down (the star's row): the number turned along the line.
+    if (a.x === b.x) return { ...flat([a, b], a.x, (a.y + b.y) / 2), vertical: true };
     return flat([a, { x: a.x, y: b.y }, b], (a.x + b.x) / 2, b.y);
   };
 
@@ -408,33 +413,22 @@ export function DeltaVView() {
           {trunk && (
             <g className="dv-trunk">
               {/* Dimmed with the rest when a route is picked: the route's own stretch is redrawn. */}
+              {/* The ends stop where the last branches' rounded corners take over. */}
               <path
-                d={`M${trunkX},${trunk.top} V${trunk.bottom}`}
+                d={`M${trunkX},${trunk.top + (starRow ? 0 : 16)} V${trunk.bottom - 16}`}
                 style={{ stroke: shade(star.data.style.color, !!view) }}
               />
-              <text x={trunkX} y={trunk.top - 18}>
-                {star.name} orbit
-              </text>
+              {starRow ? (
+                <text x={trunkX - 14} y={trunk.top + ROW / 2 + 4} style={{ textAnchor: 'end' }}>
+                  {star.name} orbit
+                </text>
+              ) : (
+                <text x={trunkX} y={trunk.top - 18}>
+                  {star.name} orbit
+                </text>
+              )}
             </g>
           )}
-          {/* The route: a white outline under its lines. */}
-          {layout.edges
-            .filter((e) => view?.edges.has(e.id) && !shortcutEdges.has(e.id))
-            .map((e) => (
-              <path key={`h-${e.id}`} d={rounded(geometry(e).pts)} className="dv-halo" />
-            ))}
-          {stubOn && homeCap && <path d={`M${trunkX},${pos(homeCap).y} H${pos(homeCap).x}`} className="dv-halo" />}
-          {view?.shortcuts.map(({ up, down }) => {
-            const a = geometry(up);
-            const b = geometry(down);
-            return (
-              <path
-                key={`sh-${up.id}`}
-                d={rounded([a.b, { x: a.a.x, y: a.b.y }, { x: a.a.x, y: b.b.y }, b.b])}
-                className="dv-halo"
-              />
-            );
-          })}
           {/* Between two rows that hang off the same node: along the trunk, not up to the node. */}
           {/* The home branch: from the trunk to the home capture node, no burn of its own. */}
           {homeCap && trunk && (
@@ -553,7 +547,17 @@ export function DeltaVView() {
                   <NodeIcon kind={node.kind} />
                 </g>
                 {/* The row's last node sits by the body's name, and its ring says what it is. */}
-                {n.sub ? subLabel(node) : !rowEnds.has(n.id) && <text y={25}>{shortLabel(node)}</text>}
+                {n.sub
+                  ? subLabel(node)
+                  : !rowEnds.has(n.id) &&
+                    // On the star's vertical row the line runs through below, so the name goes beside.
+                    (starRow?.nodes.some((m) => m.id === n.id) ? (
+                      <text x={16} y={4} style={{ textAnchor: 'start' }}>
+                        {shortLabel(node)}
+                      </text>
+                    ) : (
+                      <text y={25}>{shortLabel(node)}</text>
+                    ))}
                 <title>{nodeLabel(node)}</title>
               </g>
             );

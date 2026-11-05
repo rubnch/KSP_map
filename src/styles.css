@@ -452,14 +452,6 @@ button {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-/* The route: a white outline under its lines. */
-.dv-halo {
-  fill: none;
-  stroke: #fff;
-  stroke-width: 22;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 /* Numbers sit inside the lines, white with a dark edge so they read on light lines too. */
 .dv-edge-label text {
   fill: #fff;
@@ -497,7 +489,7 @@ button {
 .dv-trunk path {
   fill: none;
   stroke-width: 14;
-  stroke-linecap: round;
+  stroke-linecap: butt;
 }
 .dv-trunk text {
   fill: var(--text-dim);

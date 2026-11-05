@@ -40,6 +40,8 @@ export interface LayoutRow {
   attach: DvEdge | null;
   /** The row has a synchronous orbit node under it and needs extra height. */
   tall?: boolean;
+  /** The star's row: straight up from the top of the trunk, low orbit on top. */
+  vertical?: boolean;
 }
 
 export interface DvLayout {
@@ -199,13 +201,28 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     let lastJunction = -Infinity;
     const planets = home.parent.children.filter((p) => chains.has(p)).sort((x, y) => x.orbit!.a - y.orbit!.a);
     for (const p of planets) blocks.add(p);
-    // The star's own low orbit comes first, innermost of all, on the side opposite the first planet.
+    // The star's own low orbit: the trunk carries on straight up to it (intercept, then low orbit
+    // on top), and the planets start below.
     if (star && chains.has(star)) {
       blocks.add(star);
-      cursor.y = 0;
-      place(star, 1, -1);
-      sideY[-1] = cursor.y + 0.25;
-      lastJunction = 0;
+      const [intercept, low] = chains.get(star)! as [string, string];
+      const attach = attachOf.get(star)!;
+      const r: LayoutRow = {
+        body: star,
+        y: 0,
+        side: 1,
+        nodes: [
+          { id: intercept, col: 0, y: 1.4 },
+          { id: low, col: 0, y: 0 },
+        ],
+        attach,
+        vertical: true,
+      };
+      rows.push(r);
+      for (const n of r.nodes) nodes.set(n.id, n);
+      edges.push(g.edge(intercept, low)!, attach);
+      sideY[1] = sideY[-1] = 2.4;
+      lastJunction = 1.4;
     }
     planets.forEach((p, i) => {
       const side: 1 | -1 = i % 2 === 0 ? 1 : -1;
