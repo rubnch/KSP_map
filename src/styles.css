@@ -599,9 +599,13 @@ button {
   fill: var(--text);
 }
 .dv-edge-label .route-value {
-  text-decoration: underline;
-  stroke-width: 3.5px;
-  stroke: #000;
+  fill: #fff;
+  stroke: none;
+}
+.dv-pill {
+  fill: #0b0d12;
+  stroke: #fff;
+  stroke-width: 1.2;
 }
 .dv-node.via text {
   fill: var(--text);

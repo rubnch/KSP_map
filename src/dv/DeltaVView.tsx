@@ -30,6 +30,12 @@ const fmt = (v: number) => Math.round(v).toLocaleString('en-US');
 
 type Pt = { x: number; y: number };
 
+/** The dark tag behind a number that the picked route or start changed. */
+function Pill({ x, y, text, transform }: { x: number; y: number; text: string; transform?: string }) {
+  const w = text.length * 7 + 12;
+  return <rect className="dv-pill" x={x - w / 2} y={y - 8} width={w} height={16} rx={8} transform={transform} />;
+}
+
 /** Whether a line colour is light enough to need dark numbers on it. */
 function light(color: string) {
   const m = /^#?([0-9a-f]{6})$/i.exec(color.trim());
@@ -341,7 +347,15 @@ export function DeltaVView() {
     const turn = g.vertical ? `rotate(-90 ${g.lx} ${g.ly})` : undefined;
     const ink = !dim && light(lineColor(e)) ? ' ink' : '';
     return (
-      <g key={`l-${e.id}`} className={`dv-edge-label${dim ? ' dim' : ''}${ink}`}>
+      <g key={`l-${e.id}`} className={`dv-edge-label${dim ? ' dim' : ''}${hasOverride ? '' : ink}`}>
+        {hasOverride && (
+          <Pill
+            x={g.lx}
+            y={g.ly}
+            transform={turn}
+            text={`${arrow ? arrow + ' ' : ''}${override === null ? '—' : fmt(override!)}${override !== null && e.chuteDv !== undefined ? ' P' : ''}`}
+          />
+        )}
         <text x={g.lx} y={g.ly + 4} transform={turn} className={hasOverride ? 'route-value' : undefined}>
           {arrow && back && <tspan className={`mark${aero ? ' on' : ''}`}>{arrow} </tspan>}
           {hasOverride ? (override === null ? '—' : fmt(override!)) : fmt(edgeCost(e, options))}
@@ -444,6 +458,7 @@ export function DeltaVView() {
               const ix = trunkX + (homeCap.col - Math.sign(homeCap.col)) * COL;
               return (
                 <g className="dv-edge-label">
+                  <Pill x={(trunkX + ix) / 2} y={y - 4} text={fmt(preview.get('home-eject')!)} />
                   <text x={(trunkX + ix) / 2} y={y} className="route-value">
                     {fmt(preview.get('home-eject')!)}
                     <title>Ejection toward {graph.system.home.name}</title>
@@ -455,6 +470,7 @@ export function DeltaVView() {
                         +{fmt(solar.planes.get('home-eject')!)} plane
                       </text>
                     )}
+                  <Pill x={(ix + pos(homeCap).x) / 2} y={y - 4} text={fmt(preview.get('home-capture')!)} />
                   <text x={(ix + pos(homeCap).x) / 2} y={y} className="route-value">
                     {fmt(preview.get('home-capture')!)}
                     <title>Capture at {graph.system.home.name}</title>
