@@ -35,12 +35,15 @@ function TimelinePanel() {
   const targets = useMemo(() => targetsOf(origin), [origin]);
   const year = system.pack.calendar.yearLength;
 
-  // The visible range starts at the beginning of the current year and moves when the clock leaves it.
+  // The visible range starts at the beginning of the current year. It only moves when the clock
+  // leaves it (time warp, the date picker), never while the timeline itself is being dragged,
+  // or dragging to the right edge would keep pushing the range further out.
   const [rangeStart, setRangeStart] = useState(() => Math.floor(ut / year) * year);
+  const [scrubbing, setScrubbing] = useState(false);
   const rangeEnd = rangeStart + t.spanYears * year;
   useEffect(() => {
-    if (ut < rangeStart || ut > rangeEnd - year / 2) setRangeStart(Math.floor(ut / year) * year);
-  }, [ut, rangeStart, rangeEnd, year]);
+    if (!scrubbing && (ut < rangeStart || ut > rangeEnd)) setRangeStart(Math.floor(ut / year) * year);
+  }, [ut, rangeStart, rangeEnd, year, scrubbing]);
 
   const windows = useWindows(origin, targets, rangeStart, rangeEnd, t.mode, t.capture);
 
@@ -97,6 +100,7 @@ function TimelinePanel() {
         to={rangeEnd}
         ut={ut}
         yearLength={year}
+        onScrub={setScrubbing}
       />
 
       {t.selected && <TransferDetails origin={origin} />}
@@ -143,8 +147,9 @@ function Track(props: {
   to: number;
   ut: number;
   yearLength: number;
+  onScrub: (scrubbing: boolean) => void;
 }) {
-  const { origin, targets, windows, from, to, ut, yearLength } = props;
+  const { origin, targets, windows, from, to, ut, yearLength, onScrub } = props;
   const cal = useMapStore((s) => s.system.pack.calendar);
   const setUt = useMapStore((s) => s.setUt);
   const t = useTransferStore();
@@ -162,8 +167,10 @@ function Track(props: {
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('.tt-window')) return;
     e.currentTarget.setPointerCapture(e.pointerId);
+    onScrub(true);
     setUt(timeAt(e.clientX));
   };
+  const onPointerUp = () => onScrub(false);
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.currentTarget.hasPointerCapture(e.pointerId)) setUt(timeAt(e.clientX));
   };
@@ -203,6 +210,8 @@ function Track(props: {
         ref={trackRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         onPointerLeave={() => setHover(null)}
       >
         <div className="tt-axis">
