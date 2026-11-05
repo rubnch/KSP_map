@@ -1,9 +1,9 @@
 import { formatDistance, type Body } from '../core/index.ts';
 import { useMapStore } from '../state/store.ts';
 import { labelElements, markerElements } from './overlay.ts';
-import { orbitMarkers } from './markers.ts';
+import { focusMarkers } from './markers.ts';
 
-/** Body labels (click to focus) and Ap/Pe/AN/DN markers for the focused body. */
+/** Body labels (click to focus), Ap/Pe/AN/DN on the focused body's orbit and Ap/Pe on its children's. */
 export function LabelsOverlay() {
   const system = useMapStore((s) => s.system);
   const focusId = useMapStore((s) => s.focusId);
@@ -27,16 +27,17 @@ export function LabelsOverlay() {
           <span className="name">{b.name}</span>
         </div>
       ))}
-      {orbitMarkers(focus).map((m) => (
+      {focusMarkers(focus).map((m) => (
         <div
           key={`${focusId}-${m.key}`}
           ref={(el) => void (el ? markerElements.set(m.key, el) : markerElements.delete(m.key))}
-          className={`orbit-marker marker-${m.kind}`}
+          className={`orbit-marker marker-${m.kind}${m.body.id === focusId ? '' : ' is-child'}`}
+          title={`${m.body.name} ${m.label}`}
           style={{ display: 'none' }}
         >
           <span className="tick" />
           <span className="text">
-            {m.label}
+            {m.body.id === focusId ? m.label : `${m.body.name} ${m.label}`}
             {m.altitude !== undefined && <small>{formatDistance(m.altitude)}</small>}
           </span>
         </div>
