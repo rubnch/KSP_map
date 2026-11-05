@@ -106,6 +106,17 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     ]);
   }
 
+  // The low orbit around the star: a row of its own, reached from home like a planet.
+  const star = home.parent && !home.parent.parent ? home.parent : null;
+  if (star && g.nodes.has(nodeId(star, 'low'))) {
+    const intercept = nodeId(star, 'intercept', home);
+    const attach = g.edge(nodeId(home, 'capture'), intercept);
+    if (attach) {
+      chains.set(star, [intercept, nodeId(star, 'low')]);
+      attachOf.set(star, attach);
+    }
+  }
+
   const childrenOf = new Map<string, Body[]>();
   for (const [b, e] of attachOf) {
     const list = childrenOf.get(e.from) ?? [];
@@ -176,7 +187,7 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     }
     // Outermost branch points first, so the connectors of inner nodes never cross rows.
     for (let i = shown.length - 1; i >= 0; i--) {
-      const kids = (childrenOf.get(shown[i]!) ?? []).sort((x, y) => x.orbit!.a - y.orbit!.a);
+      const kids = (childrenOf.get(shown[i]!) ?? []).sort((x, y) => (x.orbit?.a ?? 0) - (y.orbit?.a ?? 0));
       for (const k of kids) if (!blocks.has(k)) place(k, cols[i]! + 1, side);
     }
   };
@@ -188,6 +199,14 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     let lastJunction = -Infinity;
     const planets = home.parent.children.filter((p) => chains.has(p)).sort((x, y) => x.orbit!.a - y.orbit!.a);
     for (const p of planets) blocks.add(p);
+    // The star's own low orbit comes first, innermost of all, on the side opposite the first planet.
+    if (star && chains.has(star)) {
+      blocks.add(star);
+      cursor.y = 0;
+      place(star, 1, -1);
+      sideY[-1] = cursor.y + 0.25;
+      lastJunction = 0;
+    }
     planets.forEach((p, i) => {
       const side: 1 | -1 = i % 2 === 0 ? 1 : -1;
       cursor.y = Math.max(sideY[side], lastJunction + 1);

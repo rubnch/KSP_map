@@ -146,13 +146,19 @@ describe('routes', () => {
 describe('layout', () => {
   const layout = layoutDvMap(g);
 
-  it('has one row per non-root body, home first', () => {
-    expect(layout.rows.length).toBe(system.bodies.length - 1);
+  it('has one row per body, Kerbol low orbit included', () => {
+    expect(layout.rows.length).toBe(system.bodies.length);
+    expect(layout.nodes.has('Kerbol:low')).toBe(true);
     expect(layout.nodes.get('Kerbin:sync')).toMatchObject({ sub: true });
     expect(new Set(layout.rows.map((r) => r.body.id)).size).toBe(layout.rows.length);
     // Planets join the trunk in order of distance from Kerbol.
     const planets = layout.rows.filter((r) => r.body.parent === system.root).map((r) => r.body.id);
     expect(planets).toEqual(['Moho', 'Eve', 'Kerbin', 'Duna', 'Dres', 'Jool', 'Eeloo']);
+  });
+
+  it('reaches Kerbol low orbit by a Hohmann down from Kerbin', () => {
+    // 668 + 276 escape, 4921 down to Kerbol, 26798 to circularize there.
+    near(cost('Kerbin:low', 'Kerbol:low'), 668 + 276 + 4921 + 26798, 1);
   });
 
   it('hangs Jool moons off the Jool capture node and the Mun off low Kerbin orbit', () => {

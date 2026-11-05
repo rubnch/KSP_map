@@ -13,7 +13,8 @@ import {
   type DvOptions,
   type Route,
 } from './graph.ts';
-import { layoutDvMap, routeView, type LayoutNode } from './layout.ts';
+import { layoutDvMap, routeView, type LayoutNode, type LayoutRow } from './layout.ts';
+import type { Body } from '../core/index.ts';
 import { OrbitCard } from './OrbitCard.tsx';
 import { usePanZoom } from './panzoom.ts';
 import { useDvStore, type DvSettings } from './store.ts';
@@ -76,42 +77,63 @@ export function DeltaVView() {
     () => (route ? routeView(layout, route.nodes, route.edges, options) : null),
     [graph, layout, route, options],
   );
-  // With only a start picked, the interplanetary numbers already read from its planet: each
-  // planet's trunk line shows the ejection toward it, its intercept line the capture there.
-  const preview = useMemo(() => {
-    const out = new Map<string, number | null>();
-    if (!from || to || !graph.nodes.has(from)) return out;
+  // Interplanetary numbers always read on the target's row: its trunk line carries the ejection
+  // toward it, its intercept line the capture there. With only a start picked, every planet reads
+  // from the start's planet; with a route, the route's own transfer does. The start planet's own
+  // two transfer lines (about arriving from home) read as coasts.
+  const solar = useMemo(() => {
+    const labels = new Map<string, number | null>();
+    const planes = new Map<string, number>();
+    if (!from || !graph.nodes.has(from) || (to && !route)) return { labels, planes };
     const star = graph.system.root;
-    let origin = graph.node(from).body;
-    while (origin.parent && origin.parent !== star) origin = origin.parent;
     const home = graph.system.home;
-    if (origin === home || origin.parent !== star) return out;
+    const planetOf = (b: Body) => {
+      while (b.parent && b.parent !== star) b = b.parent;
+      return b;
+    };
+    // The route's interplanetary ejection, if it has one.
+    const k = route
+      ? route.edges.findIndex((e) => {
+          const a = graph.node(e.from);
+          const b = graph.node(e.to);
+          return b.kind === 'intercept' && a.body.parent === star && (b.body.parent === star || b.body === star);
+        })
+      : -1;
+    const ejectEdge = route && k >= 0 ? route.edges[k]! : null;
+    if (route && !ejectEdge) return { labels, planes };
+    const origin = ejectEdge ? graph.node(ejectEdge.from).body : planetOf(graph.node(from).body);
+    if (origin === home || origin === star) return { labels, planes };
+    const arrivalOf = (r: LayoutRow) =>
+      r.nodes[1] ? layout.edges.find((e) => e.from === r.nodes[0]!.id && e.to === r.nodes[1]!.id) : undefined;
     for (const r of layout.rows) {
       const p = r.body;
-      if (p.parent !== star) continue;
-      const intercept = nodeId(p, 'intercept', origin);
-      const eject = graph.edge(nodeId(origin, 'capture'), intercept);
-      const capture = graph.edge(intercept, nodeId(p, 'capture'));
-      const drawnCapture =
-        r.nodes[0] && layout.edges.find((e) => e.from === r.nodes[0]!.id && e.to === nodeId(p, 'capture'));
+      if (p.parent !== star && p !== star) continue;
+      const arrival = arrivalOf(r);
       if (p === origin) {
-        // Its own trunk and intercept lines are about arriving from home: not this trip.
-        if (r.attach) out.set(r.attach.id, null);
-        if (drawnCapture) out.set(drawnCapture.id, null);
+        if (r.attach) labels.set(r.attach.id, null);
+        if (arrival) labels.set(arrival.id, null);
         continue;
       }
-      if (!eject || !capture) continue;
-      if (p === home) {
-        out.set('home-eject', edgeCost(eject, options));
-        out.set('home-capture', edgeCost(capture, options));
-        continue;
+      if (ejectEdge && graph.node(ejectEdge.to).body !== p) continue;
+      const arriveAt = nodeId(p, p === star ? 'low' : 'capture');
+      const intercept = nodeId(p, 'intercept', origin);
+      const eject = ejectEdge ?? graph.edge(nodeId(origin, 'capture'), intercept);
+      const next = ejectEdge ? route!.edges[k + 1] : undefined;
+      const capture = ejectEdge ? (next && next.to === arriveAt ? next : undefined) : graph.edge(intercept, arriveAt);
+      if (!eject) continue;
+      const key = p === home ? 'home-eject' : r.attach?.id;
+      if (!key) continue;
+      labels.set(key, edgeCost(eject, options));
+      if (eject.plane !== undefined) planes.set(key, eject.plane);
+      if (capture) {
+        if (p === home) labels.set('home-capture', edgeCost(capture, options));
+        else if (!ejectEdge && arrival) labels.set(arrival.id, edgeCost(capture, options));
       }
-      if (r.attach) out.set(r.attach.id, edgeCost(eject, options));
-      if (drawnCapture) out.set(drawnCapture.id, edgeCost(capture, options));
     }
-    return out;
-  }, [graph, layout, from, to, options]);
-  const labels = view?.labels ?? preview;
+    return { labels, planes };
+  }, [graph, layout, from, to, route, options]);
+  const labels = new Map([...(view?.labels ?? []), ...solar.labels]);
+  const preview = solar.labels;
 
   // The trunk sits in the middle, with room for names on both sides.
   const leftRoom = layout.minCol < 0 ? NAME_W : 0;
@@ -146,7 +168,7 @@ export function DeltaVView() {
   const trunkEdge = (e: DvEdge) =>
     e.from === nodeId(graph.system.home, 'capture') &&
     graph.node(e.to).kind === 'intercept' &&
-    graph.node(e.to).body.parent === star;
+    (graph.node(e.to).body.parent === star || graph.node(e.to).body === star);
   const trunkYs = layout.edges.filter(trunkEdge).map((e) => pos(layout.nodes.get(e.to)!).y);
   const homeCap = layout.nodes.get(nodeId(graph.system.home, 'capture'));
   if (homeCap) trunkYs.push(pos(homeCap).y);
@@ -220,6 +242,8 @@ export function DeltaVView() {
     const chute = options.chutes && e.chuteDv !== undefined;
     const override = labels.get(e.id);
     const hasOverride = labels.has(e.id);
+    // The plane change of the transfer this line stands for (the route's own, when it has one).
+    const plane = solar.planes.get(e.id) ?? (hasOverride ? undefined : e.plane);
     const anchor = geometry(e).anchor;
     // The link from the capture node to the synchronous orbit has no cost of its own.
     if (e.link && !hasOverride) return null;
@@ -232,8 +256,8 @@ export function DeltaVView() {
           className={hasOverride ? 'route-value' : undefined}
         >
           {hasOverride ? (override === null ? '—' : fmt(override!)) : fmt(edgeCost(e, options))}
-          {!hasOverride && e.aeroDv !== undefined && <tspan className="aero-mark">{aero ? ' ✓A' : ' A'}</tspan>}
-          {!hasOverride && e.chuteDv !== undefined && <tspan className="aero-mark">{chute ? ' ✓P' : ' P'}</tspan>}
+          {override !== null && e.aeroDv !== undefined && <tspan className="aero-mark">{aero ? ' ✓A' : ' A'}</tspan>}
+          {override !== null && e.chuteDv !== undefined && <tspan className="aero-mark">{chute ? ' ✓P' : ' P'}</tspan>}
           <title>
             {hasOverride
               ? override === null
@@ -247,9 +271,9 @@ export function DeltaVView() {
             {!hasOverride && e.source ? ` (${SOURCE_LABEL[e.source]})` : ''}
           </title>
         </text>
-        {!hasOverride && e.plane !== undefined && e.plane >= 5 && !options.planeChanges && (
+        {plane !== undefined && plane >= 0.5 && !options.planeChanges && (
           <text x={lx} y={ly + 13} className="plane">
-            +{fmt(e.plane)} plane
+            +{fmt(plane)} plane
           </text>
         )}
       </g>
@@ -311,6 +335,13 @@ export function DeltaVView() {
                     {fmt(preview.get('home-eject')!)}
                     <title>Ejection toward {graph.system.home.name}</title>
                   </text>
+                  {solar.planes.get('home-eject') !== undefined &&
+                    solar.planes.get('home-eject')! >= 0.5 &&
+                    !options.planeChanges && (
+                      <text x={(trunkX + ix) / 2} y={y + 20} className="plane">
+                        +{fmt(solar.planes.get('home-eject')!)} plane
+                      </text>
+                    )}
                   <text x={(ix + pos(homeCap).x) / 2} y={y} className="route-value">
                     {fmt(preview.get('home-capture')!)}
                     <title>Capture at {graph.system.home.name}</title>

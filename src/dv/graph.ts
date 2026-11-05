@@ -110,6 +110,30 @@ export class DvGraph {
       // Sibling ↔ sibling inside the parent's SOI.
       for (const x of kids) for (const y of kids) if (x !== y) this.addSiblings(p, x, y);
     }
+    // A low orbit around the star itself, reached from (and left for) each planet.
+    const star = system.root;
+    this.addNode(star, 'low');
+    for (const x of star.children) this.addStarLow(star, x);
+  }
+
+  /** Planet ↔ low orbit around the star: Hohmann down to it, circularize at its periapsis. */
+  private addStarLow(star: Body, x: Body) {
+    const r1 = x.orbit!.a;
+    const rLow = lowOrbitRadius(star);
+    const { v1, v2 } = hohmannSpeeds(star.mu, r1, rLow);
+    const vInf = Math.abs(v1 - circularSpeed(star.mu, r1));
+    const circ = Math.abs(v2 - circularSpeed(star.mu, rLow));
+    const plane = planeChange(v1, angleBetween(x.orbit!.normal, [0, 0, 1]));
+    const low = nodeId(star, 'low');
+    // Out: eject from the planet, then circularize low around the star.
+    const sInt = this.addNode(star, 'intercept', x);
+    this.addEdge({ from: nodeId(x, 'capture'), to: sInt, dv: excessBurn(x.mu, lowOrbitRadius(x), vInf), plane });
+    this.addSyncDeparture(x, sInt, vInf, plane);
+    this.addEdge({ from: sInt, to: low, dv: circ });
+    // Back: raise the apoapsis to the planet, capture there.
+    const xInt = this.addNode(x, 'intercept', star);
+    this.addEdge({ from: low, to: xInt, dv: circ, plane });
+    this.addCapture(xInt, x, vInf);
   }
 
   node(id: string): DvNode {

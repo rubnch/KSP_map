@@ -20,13 +20,14 @@ const km = (m: number) => `${Math.round(m / 1000).toLocaleString('en-US')} km`;
 export function OrbitCard({ node, x, y }: { node: DvNode; x: number; y: number }) {
   const b = node.body;
   const R = b.radius;
-  const soi = b.soi;
+  const low = lowOrbitRadius(b);
+  // The star has no sphere of influence: draw out to a few low orbits.
+  const soi = Number.isFinite(b.soi) ? b.soi : low * 8;
   // Body surface → R0, anything above it at least a few pixels out, SOI edge → RS; altitudes
   // squeezed by a power law in between.
   const s = (r: number) => (r <= R ? R0 : R0 + 5 + (RS - R0 - 5) * ((r - R) / (soi - R)) ** 0.35);
   const color = b.data.style.color;
   const atm = b.data.physical.atmosphere;
-  const low = lowOrbitRadius(b);
   const sync = syncOrbitRadius(b);
 
   // An orbit from periapsis rp to apoapsis ra, periapsis on the left of the body.
