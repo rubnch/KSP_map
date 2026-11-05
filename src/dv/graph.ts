@@ -360,7 +360,7 @@ export const shortKindLabel: Record<NodeKind, string> = {
   syncTransfer: 'Transfer',
   sync: 'Synchronous',
   syncCapture: 'High capture',
-  capture: 'Capture',
+  capture: 'Capture/Escape',
   intercept: 'Intercept',
 };
 

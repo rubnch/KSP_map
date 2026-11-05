@@ -340,6 +340,8 @@ export function DeltaVView() {
     const plane = solar.planes.get(e.id) ?? (hasOverride ? undefined : e.plane);
     // The link from the capture node to the synchronous orbit has no cost of its own.
     if (e.link && !hasOverride) return null;
+    // Legs the picked route or start coasts through get no number at all.
+    if (hasOverride && override === null) return null;
     const dim = view && !hasOverride && !(view.edges.has(e.id) && !shortcutEdges.has(e.id));
     // Aerobraking: an arrow in the line, pointing the way it works, filled when it is counted.
     const back = g.vertical ? g.b.y > g.a.y : g.b.x < g.a.x;
@@ -347,13 +349,13 @@ export function DeltaVView() {
     const turn = g.vertical ? `rotate(-90 ${g.lx} ${g.ly})` : undefined;
     const ink = !dim && light(lineColor(e)) ? ' ink' : '';
     return (
-      <g key={`l-${e.id}`} className={`dv-edge-label${dim ? ' dim' : ''}${hasOverride ? '' : ink}`}>
+      <g key={`l-${e.id}`} className={`dv-edge-label${dim ? ' dim' : ''}${ink}`}>
         {hasOverride && (
           <Pill
             x={g.lx}
             y={g.ly}
             transform={turn}
-            text={`${arrow ? arrow + ' ' : ''}${override === null ? '—' : fmt(override!)}${override !== null && e.chuteDv !== undefined ? ' P' : ''}`}
+            text={`${arrow ? arrow + ' ' : ''}${fmt(override!)}${e.chuteDv !== undefined ? ' P' : ''}`}
           />
         )}
         <text x={g.lx} y={g.ly + 4} transform={turn} className={hasOverride ? 'route-value' : undefined}>
@@ -579,7 +581,7 @@ export function DeltaVView() {
           y={Math.min(hover.y + 16, (box.current?.clientHeight ?? 0) - 230)}
         />
       )}
-      <Legend />
+      <Legend sync={graph.withSync} />
       <div className="dv-zoom panel" onClick={(ev) => ev.stopPropagation()}>
         <button onClick={() => pz.zoomBy(1.4)} aria-label="Zoom in">
           +
@@ -597,7 +599,7 @@ export function DeltaVView() {
 
 const LEGEND: { kind: NodeKind; label: string }[] = [
   { kind: 'intercept', label: 'Intercept: entering the SOI' },
-  { kind: 'capture', label: 'Capture: elliptical orbit to the SOI edge' },
+  { kind: 'capture', label: 'Capture/Escape: elliptical orbit to the SOI edge' },
   { kind: 'syncTransfer', label: 'Transfer up to synchronous orbit' },
   { kind: 'sync', label: 'Synchronous orbit' },
   { kind: 'low', label: 'Low orbit' },
@@ -605,10 +607,10 @@ const LEGEND: { kind: NodeKind; label: string }[] = [
 ];
 
 /** What the rings and marks on the lines mean. */
-function Legend() {
+function Legend({ sync }: { sync: boolean }) {
   return (
     <div className="dv-legend panel" onClick={(ev) => ev.stopPropagation()}>
-      {LEGEND.map((l) => (
+      {LEGEND.filter((l) => sync || (l.kind !== 'sync' && l.kind !== 'syncTransfer')).map((l) => (
         <div key={l.kind} className="dv-node">
           <svg width={26} height={26} viewBox="-13 -13 26 26" aria-hidden>
             <NodeIcon kind={l.kind} />
@@ -624,6 +626,12 @@ function Legend() {
       </div>
       <div>
         <span className="sym plane">+N</span>Worst-case plane change
+      </div>
+      <div>
+        <svg width={26} height={26} viewBox="-13 -13 26 26" aria-hidden>
+          <rect className="dv-pill" x={-12} y={-7} width={24} height={14} rx={7} />
+        </svg>
+        Changes with the departure you pick
       </div>
     </div>
   );
@@ -648,7 +656,7 @@ function shortLabel(n: DvNode): string {
     case 'syncCapture':
       return 'High capture';
     case 'capture':
-      return 'Capture';
+      return 'Capture/Escape';
     case 'intercept':
       return 'Intercept';
   }

@@ -598,14 +598,10 @@ button {
 .dv-node .sync-cost {
   fill: var(--text);
 }
-.dv-edge-label .route-value {
-  fill: #fff;
-  stroke: none;
-}
 .dv-pill {
-  fill: #0b0d12;
-  stroke: #fff;
-  stroke-width: 1.2;
+  fill: rgba(255, 255, 255, 0.22);
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1;
 }
 .dv-node.via text {
   fill: var(--text);

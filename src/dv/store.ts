@@ -22,7 +22,7 @@ const DEFAULT_SETTINGS: DvSettings = {
   aerobrake: false,
   chutes: false,
   planeChanges: false,
-  sync: true,
+  sync: false,
 };
 
 interface DvState extends DvSettings {
@@ -38,7 +38,8 @@ interface DvState extends DvSettings {
 }
 
 const storageKey = () => `ksp-map:dv-overrides:${useMapStore.getState().system.pack.id}`;
-const SETTINGS_KEY = 'ksp-map:dv-settings';
+// v2: synchronous orbits became off by default, so earlier saved settings start over.
+const SETTINGS_KEY = 'ksp-map:dv-settings-v2';
 
 function load<T extends object>(key: string, fallback: T): T {
   try {
