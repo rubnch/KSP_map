@@ -223,13 +223,17 @@ export function DeltaVView() {
   const trunkX = PAD_X + leftRoom - layout.minCol * COL;
   const pos = (n: LayoutNode) => ({ x: trunkX + n.col * COL, y: PAD_Y + n.y * ROW });
 
-  // From the home surface to each body's surface (or low orbit for gas giants).
+  // To each body's surface (or low orbit for gas giants): from the picked departure, or from the
+  // home surface when none is picked. The departure's own body gets no total.
+  const departure = from && graph.nodes.has(from) ? from : null;
   const landing = useMemo(() => {
     const home = graph.system.home;
-    const start = graph.nodes.has(nodeId(home, 'surface')) ? nodeId(home, 'surface') : nodeId(home, 'low');
+    const start =
+      departure ?? (graph.nodes.has(nodeId(home, 'surface')) ? nodeId(home, 'surface') : nodeId(home, 'low'));
+    const startBody = graph.node(start).body;
     const out = new Map<string, { total: number; worst: number; orbitOnly: boolean }>();
     for (const r of layout.rows) {
-      if (r.body === home) continue;
+      if (r.body === startBody) continue;
       const surf = nodeId(r.body, 'surface');
       const orbitOnly = !graph.nodes.has(surf);
       const target = orbitOnly ? nodeId(r.body, 'low') : surf;
@@ -243,7 +247,7 @@ export function DeltaVView() {
       if (total !== null && worst !== null) out.set(r.body.id, { total, worst, orbitOnly });
     }
     return out;
-  }, [graph, layout, options, roundTrip]);
+  }, [graph, layout, options, roundTrip, departure]);
 
   const width = trunkX + layout.maxCol * COL + NAME_W + PAD_X;
   // The solar trunk: from the first planet branch to the last.
@@ -510,7 +514,7 @@ export function DeltaVView() {
                   <text x={nameX} y={p.y + 22} className="dv-land">
                     {fmt(land.total)}
                     {land.orbitOnly ? ' to orbit' : ''}
-                    <title>{`From ${graph.system.home.name}'s surface to ${r.body.name}'s ${land.orbitOnly ? 'low orbit' : 'surface'}${roundTrip ? ' and back' : ''}, with the calculator settings, m/s`}</title>
+                    <title>{`From ${departure ? nodeLabel(graph.node(departure)) : `${graph.system.home.name}'s surface`} to ${r.body.name}'s ${land.orbitOnly ? 'low orbit' : 'surface'}${roundTrip ? ' and back' : ''}, with the calculator settings, m/s`}</title>
                   </text>
                 )}
                 {land && !options.planeChanges && land.worst - land.total >= 5 && (
