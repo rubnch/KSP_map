@@ -138,15 +138,27 @@ export function DeltaVView() {
     if (an.sub && bn.sub) {
       return { d: `M${a.x},${a.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y + 20, anchor: undefined, a, b };
     }
-    // Climbs from the row: along the row to the spot below, then straight up, with the number
-    // halfway up on the side away from the low orbit.
+    // Climbs from the row: straight up from the row node, then across to the node up there, with
+    // the number halfway up on the side away from the low orbit. The home world's high capture is
+    // reached from its intercept (drawn on the map only), like everyone else's.
     if (bn.sub || an.sub) {
-      const top = bn.sub ? a : b;
+      let top = bn.sub ? a : b;
       const sub = bn.sub ? b : a;
-      const d = bn.sub ? `M${a.x},${a.y} H${b.x} V${b.y}` : `M${a.x},${a.y} V${b.y} H${b.x}`;
-      const inner = Math.sign(sub.x - lowX(bn.sub ? bn : an)) || -1;
-      const anchor = (inner < 0 ? 'end' : 'start') as 'end' | 'start';
-      return { d, lx: sub.x + inner * 6, ly: (top.y + sub.y) / 2 + 11, anchor, a, b };
+      const rowN = bn.sub ? an : bn;
+      if (rowN === homeCap && graph.node((bn.sub ? bn : an).id).kind === 'syncCapture') {
+        top = { x: trunkX + (homeCap.col - Math.sign(homeCap.col)) * COL, y: top.y };
+      }
+      const d = `M${top.x},${top.y} V${sub.y} H${sub.x}`;
+      const out = Math.sign(top.x - lowX(bn.sub ? bn : an)) || -1;
+      const anchor = (out < 0 ? 'end' : 'start') as 'end' | 'start';
+      return {
+        d,
+        lx: top.x + out * 6,
+        ly: (top.y + sub.y) / 2 + 11,
+        anchor,
+        a: bn.sub ? top : sub,
+        b: bn.sub ? sub : top,
+      };
     }
     // Transfers from home leave from the trunk, where the home branch joins it.
     if (trunkEdge(e)) {
