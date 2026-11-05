@@ -76,6 +76,42 @@ export function DeltaVView() {
     () => (route ? routeView(layout, route.nodes, route.edges, options) : null),
     [graph, layout, route, options],
   );
+  // With only a start picked, the interplanetary numbers already read from its planet: each
+  // planet's trunk line shows the ejection toward it, its intercept line the capture there.
+  const preview = useMemo(() => {
+    const out = new Map<string, number | null>();
+    if (!from || to || !graph.nodes.has(from)) return out;
+    const star = graph.system.root;
+    let origin = graph.node(from).body;
+    while (origin.parent && origin.parent !== star) origin = origin.parent;
+    const home = graph.system.home;
+    if (origin === home || origin.parent !== star) return out;
+    for (const r of layout.rows) {
+      const p = r.body;
+      if (p.parent !== star) continue;
+      const intercept = nodeId(p, 'intercept', origin);
+      const eject = graph.edge(nodeId(origin, 'capture'), intercept);
+      const capture = graph.edge(intercept, nodeId(p, 'capture'));
+      const drawnCapture =
+        r.nodes[0] && layout.edges.find((e) => e.from === r.nodes[0]!.id && e.to === nodeId(p, 'capture'));
+      if (p === origin) {
+        // Its own trunk and intercept lines are about arriving from home: not this trip.
+        if (r.attach) out.set(r.attach.id, null);
+        if (drawnCapture) out.set(drawnCapture.id, null);
+        continue;
+      }
+      if (!eject || !capture) continue;
+      if (p === home) {
+        out.set('home-eject', edgeCost(eject, options));
+        out.set('home-capture', edgeCost(capture, options));
+        continue;
+      }
+      if (r.attach) out.set(r.attach.id, edgeCost(eject, options));
+      if (drawnCapture) out.set(drawnCapture.id, edgeCost(capture, options));
+    }
+    return out;
+  }, [graph, layout, from, to, options]);
+  const labels = view?.labels ?? preview;
 
   // The trunk sits in the middle, with room for names on both sides.
   const leftRoom = layout.minCol < 0 ? NAME_W : 0;
@@ -182,8 +218,8 @@ export function DeltaVView() {
     const { lx, ly } = geometry(e);
     const aero = options.aerobrake && e.aeroDv !== undefined;
     const chute = options.chutes && e.chuteDv !== undefined;
-    const override = view?.labels.get(e.id);
-    const hasOverride = view?.labels.has(e.id) ?? false;
+    const override = labels.get(e.id);
+    const hasOverride = labels.has(e.id);
     const anchor = geometry(e).anchor;
     // The link from the capture node to the synchronous orbit has no cost of its own.
     if (e.link && !hasOverride) return null;
@@ -263,6 +299,25 @@ export function DeltaVView() {
               style={{ stroke: stubOn ? undefined : star.data.style.color }}
             />
           )}
+          {homeCap &&
+            trunk &&
+            preview.has('home-eject') &&
+            (() => {
+              const y = pos(homeCap).y - 7;
+              const ix = trunkX + (homeCap.col - Math.sign(homeCap.col)) * COL;
+              return (
+                <g className="dv-edge-label">
+                  <text x={(trunkX + ix) / 2} y={y} className="route-value">
+                    {fmt(preview.get('home-eject')!)}
+                    <title>Ejection toward {graph.system.home.name}</title>
+                  </text>
+                  <text x={(ix + pos(homeCap).x) / 2} y={y} className="route-value">
+                    {fmt(preview.get('home-capture')!)}
+                    <title>Capture at {graph.system.home.name}</title>
+                  </text>
+                </g>
+              );
+            })()}
           {view?.shortcuts.map(({ up, down }) => {
             const a = geometry(up);
             const b = geometry(down);
