@@ -400,7 +400,12 @@ export function DeltaVView() {
         <g transform={`translate(${pz.view.x},${pz.view.y}) scale(${pz.view.k})`}>
           {trunk && (
             <g className="dv-trunk">
-              <path d={`M${trunkX},${trunk.top} V${trunk.bottom}`} style={{ stroke: star.data.style.color }} />
+              {/* Dimmed with the rest when a route is picked: the route's own stretch is redrawn. */}
+              <path
+                d={`M${trunkX},${trunk.top} V${trunk.bottom}`}
+                className={view ? 'dim' : undefined}
+                style={{ stroke: star.data.style.color }}
+              />
               <text x={trunkX} y={trunk.top - 18}>
                 {star.name} orbit
               </text>
@@ -483,7 +488,7 @@ export function DeltaVView() {
                 key={`s-${up.id}`}
                 d={rounded([a.b, { x: a.a.x, y: a.b.y }, { x: a.a.x, y: b.b.y }, b.b])}
                 className="dv-line"
-                style={{ stroke: graph.node(up.from).body.data.style.color }}
+                style={{ stroke: lineColor(up) }}
               />
             );
           })}

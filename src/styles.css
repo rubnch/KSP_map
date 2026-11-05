@@ -502,6 +502,9 @@ button {
   stroke-width: 14;
   stroke-linecap: round;
 }
+.dv-trunk path.dim {
+  opacity: 0.3;
+}
 .dv-trunk text {
   fill: var(--text-dim);
   text-anchor: middle;
