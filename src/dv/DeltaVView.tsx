@@ -319,9 +319,12 @@ export function DeltaVView() {
     // Transfers from home leave from the trunk, where the home branch joins it.
     if (trunkEdge(e)) {
       const t = { x: trunkX, y: a.y };
+      // Drawn from the home intercept along the home branch, so the turn onto the trunk is a
+      // rounded corner rather than a line end sticking out of the branch.
+      const h = homeCap ? { x: trunkX + (homeCap.col - Math.sign(homeCap.col)) * COL, y: a.y } : t;
       // Up the trunk to the star's row: the number just under the star's intercept.
-      if (b.x === trunkX) return { ...flat([t, b], b.x, b.y + ROW / 2, t, b), vertical: true };
-      return flat([t, { x: t.x, y: b.y }, b], (t.x + b.x) / 2, b.y, t, b);
+      if (b.x === trunkX) return { ...flat([h, t, b], b.x, b.y + ROW / 2, t, b), vertical: true };
+      return flat([h, t, { x: t.x, y: b.y }, b], (t.x + b.x) / 2, b.y, t, b);
     }
     if (an.y === bn.y) return flat([a, b], (a.x + b.x) / 2, b.y);
     // Straight up or down (the star's row): the number turned along the line.
