@@ -441,6 +441,10 @@ button {
   fill: var(--route-end);
   font-weight: 700;
 }
+.dv-sync-name {
+  fill: var(--text-dim);
+  font-size: 11px;
+}
 .dv-land {
   fill: var(--text);
   font-weight: 400;

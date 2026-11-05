@@ -59,6 +59,20 @@ describe('transfers from low Kerbin orbit', () => {
   });
 });
 
+describe('synchronous orbits', () => {
+  it('exist only where they fit inside the SOI', () => {
+    for (const id of ['Kerbin', 'Eve', 'Duna', 'Jool', 'Minmus', 'Dres', 'Eeloo']) expect(g.nodes.has(`${id}:sync`)).toBe(true);
+    for (const id of ['Mun', 'Moho', 'Laythe', 'Tylo']) expect(g.nodes.has(`${id}:sync`)).toBe(false);
+  });
+
+  it('matches the community keostationary figures (680 + 435)', () => {
+    const e = g.edge('Kerbin:low', 'Kerbin:sync')!;
+    near(e.burns![0], 680, 3);
+    near(e.burns![1], 435, 3);
+    expect(cost('Kerbin:low', 'Kerbin:sync')).toBeCloseTo(e.dv);
+  });
+});
+
 describe('aerobraking', () => {
   it('makes Duna capture and landing nearly free', () => {
     const aero = { aerobrake: true, planeChanges: false };
@@ -99,7 +113,8 @@ describe('layout', () => {
   const layout = layoutDvMap(g);
 
   it('has one row per non-root body, home first', () => {
-    expect(layout.rows.length).toBe(system.bodies.length - 1);
+    const syncs = [...g.nodes.values()].filter((n) => n.kind === 'sync').length;
+    expect(layout.rows.length).toBe(system.bodies.length - 1 + syncs);
     expect(layout.rows[0]!.body.id).toBe('Kerbin');
   });
 

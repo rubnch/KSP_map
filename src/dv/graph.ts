@@ -27,10 +27,11 @@ import {
   lowOrbitAltitude,
   lowOrbitRadius,
   planeChange,
+  syncOrbitRadius,
   type AscentSource,
 } from './physics.ts';
 
-export type NodeKind = 'surface' | 'low' | 'capture' | 'intercept';
+export type NodeKind = 'surface' | 'low' | 'sync' | 'capture' | 'intercept';
 
 export interface DvNode {
   id: string;
@@ -50,6 +51,8 @@ export interface DvEdge {
   aeroDv?: number;
   /** Plane change covering the full inclination gap, burned at the transfer's slowest point, m/s. The real cost at AN/DN depends on the date; the transfer timeline computes it per window. */
   plane?: number;
+  /** For two-burn transfers (low orbit ↔ synchronous orbit): the burns that make up dv. */
+  burns?: [number, number];
   /** Where the number comes from, for ascent and landing edges. */
   source?: AscentSource;
 }
@@ -80,6 +83,7 @@ export class DvGraph {
       if (hasSurface(b)) this.addNode(b, 'surface');
       this.addNode(b, 'low');
       this.addNode(b, 'capture');
+      if (syncOrbitRadius(b)) this.addNode(b, 'sync');
     }
     for (const b of bodies) this.addBodyEdges(b, ascentOverrides[b.id]);
     for (const p of system.bodies) {
@@ -123,6 +127,21 @@ export class DvGraph {
     const escape = escapeSpeed(b.mu, r) - circularSpeed(b.mu, r);
     this.addEdge({ from: low, to: cap, dv: escape });
     this.addEdge({ from: cap, to: low, dv: escape, aeroDv: atm ? 0 : undefined });
+    const rSync = syncOrbitRadius(b);
+    if (rSync) {
+      // Hohmann from the low orbit up to the synchronous orbit, and the escape from there.
+      const sync = nodeId(b, 'sync');
+      const { v1, v2 } = hohmannSpeeds(b.mu, r, rSync);
+      const burns: [number, number] = [v1 - circularSpeed(b.mu, r), circularSpeed(b.mu, rSync) - v2];
+      const up = burns[0] + burns[1];
+      this.addEdge({ from: low, to: sync, dv: up, burns });
+      this.addEdge({ from: sync, to: low, dv: up, burns: [burns[1], burns[0]] });
+      const out = escapeSpeed(b.mu, rSync) - circularSpeed(b.mu, rSync);
+      this.addEdge({ from: sync, to: cap, dv: out });
+      // Down from a parabolic orbit: lower the apoapsis at low-orbit periapsis, then circularize.
+      const down = escapeSpeed(b.mu, r) - v1 + burns[1];
+      this.addEdge({ from: cap, to: sync, dv: down, burns: [escapeSpeed(b.mu, r) - v1, burns[1]] });
+    }
     if (hasSurface(b)) {
       const surf = nodeId(b, 'surface');
       const ascent = ascentCost(b, override);
@@ -247,6 +266,8 @@ export function nodeLabel(n: DvNode): string {
       return `${n.body.name} surface`;
     case 'low':
       return `${n.body.name} low orbit (${Math.round(lowOrbitAltitude(n.body) / 1000)} km)`;
+    case 'sync':
+      return `${n.body.name} synchronous orbit (${fmtKm(syncOrbitRadius(n.body)! - n.body.radius)})`;
     case 'capture':
       return `${n.body.name} capture / escape`;
     case 'intercept':
@@ -254,9 +275,12 @@ export function nodeLabel(n: DvNode): string {
   }
 }
 
+const fmtKm = (m: number) => `${Math.round(m / 1000).toLocaleString('en-US')} km`;
+
 export const shortKindLabel: Record<NodeKind, string> = {
   surface: 'Surface',
   low: 'Low orbit',
+  sync: 'Synchronous',
   capture: 'Capture',
   intercept: 'Intercept',
 };
@@ -270,6 +294,9 @@ export function legLabel(g: DvGraph, e: DvEdge, o: DvOptions): string {
   const B = b.body.name;
   if (a.kind === 'surface') return `Launch to ${B} low orbit`;
   if (b.kind === 'surface') return aero ? `Deorbit and aerobrake to ${B} surface` : `Land on ${B}`;
+  if (b.kind === 'sync') return `Raise to ${B} synchronous orbit (two burns)`;
+  if (a.kind === 'sync' && b.kind === 'low') return `Lower to ${B} low orbit (two burns)`;
+  if (a.kind === 'sync') return `Escape burn at ${A}`;
   if (a.kind === 'low' && b.kind === 'capture') return `Escape burn at ${A}`;
   if (a.kind === 'capture' && b.kind === 'low') return aero ? `Aerobrake into ${B} low orbit` : `Circularize at ${B} low orbit`;
   if (b.kind === 'intercept') {

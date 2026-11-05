@@ -94,6 +94,7 @@ export function DeltaVView() {
               ? `Aerobraking possible: ${fmt(e.dv)} m/s powered, ${fmt(e.aeroDv)} m/s with aerobraking`
               : `${fmt(e.dv)} m/s`}
             {e.source ? ` (${SOURCE_LABEL[e.source]})` : ''}
+            {e.burns ? ` (burns: ${fmt(e.burns[0])} + ${fmt(e.burns[1])})` : ''}
           </title>
         </text>
         {e.plane !== undefined && e.plane >= 5 && !options.planeChanges && (
@@ -137,12 +138,12 @@ export function DeltaVView() {
         })}
         {layout.rows.map((r) => {
           const last = r.nodes[r.nodes.length - 1]!;
-          const land = landing.get(r.body.id);
+          const land = r.sync ? undefined : landing.get(r.body.id);
           const home = graph.system.home;
           return (
-            <g key={`n-${r.body.id}`}>
-              <text x={x(last.col) + 16} y={y(r.row) + 4} className="dv-body-name">
-                {r.body.name}
+            <g key={`n-${r.body.id}${r.sync ? '-sync' : ''}`}>
+              <text x={x(last.col) + 16} y={y(r.row) + 4} className={r.sync ? 'dv-sync-name' : 'dv-body-name'}>
+                {r.sync ? nodeLabel(graph.node(last.id)) : r.body.name}
               </text>
               {land && (
                 <text x={x(last.col) + 24 + r.body.name.length * 8} y={y(r.row) + 1} className="dv-land">
@@ -192,6 +193,8 @@ function shortLabel(n: DvNode): string {
       return 'Surface';
     case 'low':
       return 'Low orbit';
+    case 'sync':
+      return 'Synchronous';
     case 'capture':
       return 'Capture';
     case 'intercept':

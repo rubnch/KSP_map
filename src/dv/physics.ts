@@ -101,3 +101,14 @@ export function deorbitBurn(b: Body): number {
   const { v1 } = hohmannSpeeds(b.mu, r1, b.radius + atm.height / 2);
   return circularSpeed(b.mu, r1) - v1;
 }
+
+/**
+ * Radius of the synchronous (stationary) orbit, or null when it doesn't fit: above the low
+ * orbit and inside the sphere of influence. Tidally locked moons never have one.
+ */
+export function syncOrbitRadius(b: Body): number | null {
+  const T = Math.abs(b.data.physical.rotationPeriod);
+  if (!T || b.data.physical.tidallyLocked) return null;
+  const r = Math.cbrt((b.mu * T * T) / (4 * Math.PI * Math.PI));
+  return r > lowOrbitRadius(b) && r < b.soi ? r : null;
+}

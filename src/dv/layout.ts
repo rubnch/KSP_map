@@ -21,6 +21,8 @@ export interface LayoutRow {
   nodes: LayoutNode[];
   /** Edge from another row into this row's first node; null for the home row. */
   attach: DvEdge | null;
+  /** A one-node row for the body's synchronous orbit, hanging off its low orbit. */
+  sync?: boolean;
 }
 
 export interface DvLayout {
@@ -98,7 +100,17 @@ export function layoutDvMap(g: DvGraph): DvLayout {
     for (let i = ids.length - 1; i >= 0; i--) {
       const kids = (childrenOf.get(ids[i]!) ?? []).sort((x, y) => x.orbit!.a - y.orbit!.a);
       for (const k of kids) place(k, col0 + i + 1);
+      if (ids[i] === nodeId(b, 'low') && g.nodes.has(nodeId(b, 'sync'))) placeSync(b, col0 + i + 1);
     }
+  };
+  const placeSync = (b: Body, col: number) => {
+    const id = nodeId(b, 'sync');
+    const attach = g.edge(nodeId(b, 'low'), id)!;
+    const n = { id, col, row: rows.length };
+    rows.push({ body: b, row: n.row, nodes: [n], attach, sync: true });
+    nodes.set(id, n);
+    cols = Math.max(cols, col + 1);
+    edges.push(attach);
   };
   if (chains.has(home)) place(home, 0);
   return { rows, nodes, edges, cols };
