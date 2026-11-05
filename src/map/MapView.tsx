@@ -6,6 +6,7 @@ import { useMapStore } from '../state/store.ts';
 import { SCALE } from './scale.ts';
 import { SystemScene } from './SystemScene.tsx';
 import { LabelsOverlay } from './LabelsOverlay.tsx';
+import { TransferArc } from '../transfer/TransferArc.tsx';
 
 export function MapView() {
   return (
@@ -18,6 +19,7 @@ export function MapView() {
       >
         <color attach="background" args={['#05070d']} />
         <SystemScene />
+        <TransferArc />
         <CameraRig />
       </Canvas>
       <LabelsOverlay />

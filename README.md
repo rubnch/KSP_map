@@ -18,6 +18,12 @@ An interactive, browser-based map of Kerbal Space Program planetary systems: nav
 
 Hovering a body shows its sphere of influence. The focused body's orbit shows Ap/Pe and AN/DN markers. The URL keeps the focused body (`?focus=Duna`) and accepts `?ut=` in seconds.
 
+### Transfer windows
+
+The **Transfer windows** button above the clock (or `?transfers` in the URL) opens a timeline of the next windows from an origin (the home world by default, or any body with siblings) to every other body around the same parent. Each bar spans the departure dates within 10% of the window's best Δv, the diamond marks the best date, and the cheapest window in view is highlighted. Drag along the timeline to move the clock. Click a window to jump to its departure and draw the transfer on the map, with the ship moving along it as time passes; the card below lists departure and arrival dates, the Δv split (ejection, mid-course plane change, capture), v∞, the phase angle against the Hohmann ideal, and the ejection angle and inclination to fly it by hand. The ▦ button next to a body opens its porkchop plot (departure date against flight time, coloured by Δv); click anywhere on it to pick that transfer.
+
+Windows are found in two steps: circular-orbit maths predicts when each one opens (the phase angle equals the Hohmann phase angle, once per synodic period), then a Lambert solver (Izzo's algorithm) searches around each prediction on the real, eccentric and inclined orbits. **Optimal** takes the cheaper of a direct transfer and one flown in the origin's plane with a plane change burn on the way (**Ballistic** allows only the direct one); that burn is the date-specific plane change cost. Ejection and capture use circular parking orbits (30 km above the atmosphere, or 10% of the radius) and the speed at the SOI edge, like alexmoon's Launch Window Planner, whose stock Kerbin → Duna windows the tests reproduce to within 0.1 m/s. The searches run in Web Workers and are cached per pack. Lambert solutions are single-revolution only.
+
 ## Development
 
 Requires Node 22.
@@ -37,6 +43,7 @@ npm run build      # static site in dist/
 | `src/core/` | Orbit maths and data types. No UI code. |
 | `src/map/` | The 3D / top-down map view (react-three-fiber). |
 | `src/ui/` | Panels and controls around the map. |
+| `src/transfer/` | Lambert solver, transfer windows, porkchop plots, the timeline and the transfer arc. |
 | `data/packs/*.json` | One system per file in the unified format. |
 | `data/schema/system.schema.json` | JSON Schema every pack is validated against in the tests. |
 | `tools/converter/` | (later) Offline converter from Kopernicus configs to packs. |

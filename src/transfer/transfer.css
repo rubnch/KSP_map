@@ -1,0 +1,426 @@
+/* Transfer window timeline and porkchop plot. Kept apart from styles.css. */
+.time-stack {
+  grid-area: time;
+  align-self: end;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.time-stack > .time-controls {
+  align-self: center;
+}
+
+.transfer-open {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.transfer-open:hover {
+  color: var(--text);
+}
+
+.transfer-timeline {
+  position: relative;
+  width: 100%;
+  max-width: 980px;
+  padding: 8px 12px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.tt-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+.tt-header strong {
+  font-size: 13px;
+}
+.tt-header select {
+  font: inherit;
+  color: inherit;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.tt-header label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+}
+.tt-seg {
+  display: inline-flex;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tt-seg button {
+  padding: 2px 8px;
+}
+.tt-seg button.on {
+  background: var(--accent);
+  color: #05070d;
+  font-weight: 600;
+}
+.tt-close {
+  margin-left: auto;
+  color: var(--text-dim);
+  padding: 0 4px;
+}
+
+.tt-body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+}
+.tt-labels {
+  display: flex;
+  flex-direction: column;
+}
+.tt-axis-spacer {
+  height: 16px;
+}
+.tt-label {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.tt-track {
+  position: relative;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  min-width: 0;
+}
+.tt-axis {
+  position: relative;
+  height: 16px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.tt-year {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  color: var(--text-dim);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.tt-gridline {
+  position: absolute;
+  top: 16px;
+  bottom: 0;
+  width: 1px;
+  background: rgba(120, 150, 200, 0.12);
+  pointer-events: none;
+}
+.tt-row {
+  position: relative;
+  height: 22px;
+  border-bottom: 1px solid rgba(120, 150, 200, 0.08);
+}
+.tt-status {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  color: var(--text-dim);
+  font-size: 11px;
+  pointer-events: none;
+}
+.tt-window {
+  position: absolute;
+  top: 4px;
+  height: 14px;
+  padding: 0;
+  border-radius: 4px;
+  background: rgba(127, 178, 255, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(127, 178, 255, 0.45);
+  cursor: pointer;
+}
+.tt-window:hover,
+.tt-window.selected {
+  background: rgba(127, 178, 255, 0.45);
+}
+.tt-window.selected {
+  box-shadow: inset 0 0 0 2px #6fd36f;
+}
+.tt-window.cheapest {
+  background: rgba(127, 178, 255, 0.38);
+}
+.tt-diamond {
+  position: absolute;
+  top: 3px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  transform: rotate(45deg);
+  background: var(--accent);
+}
+.tt-window.cheapest .tt-diamond {
+  background: #fff;
+}
+.tt-dv {
+  position: absolute;
+  left: 100%;
+  top: -1px;
+  margin-left: 3px;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.tt-window.cheapest .tt-dv {
+  color: var(--text);
+}
+.tt-porkchop {
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-dim);
+  border-radius: 4px;
+}
+.tt-porkchop:hover {
+  color: var(--text);
+  background: rgba(127, 178, 255, 0.24);
+}
+.tt-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #6fd36f;
+  pointer-events: none;
+}
+.tt-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  max-width: 360px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(5, 7, 13, 0.95);
+  border: 1px solid var(--panel-border);
+  white-space: normal;
+  pointer-events: none;
+  z-index: 3;
+}
+.tt-note {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 10.5px;
+}
+
+.tt-details {
+  border-top: 1px solid var(--panel-border);
+  padding-top: 6px;
+}
+.tt-details-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tt-details-head button {
+  padding: 1px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+}
+.tt-total {
+  margin: 0 8px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.tt-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0 18px;
+}
+.tt-details dl {
+  margin: 6px 0 0;
+  display: grid;
+  gap: 2px;
+}
+.tt-details dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tt-details dt {
+  color: var(--text-dim);
+}
+.tt-details dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.tt-details small {
+  color: var(--text-dim);
+}
+.tt-link {
+  padding: 0;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.tt-link:hover {
+  color: var(--accent);
+}
+
+/* Porkchop plot: floats above the timeline. */
+.porkchop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(480px, calc(100vw - 32px));
+  padding: 8px 12px 10px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  backdrop-filter: blur(6px);
+  z-index: 4;
+}
+.porkchop header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.porkchop header button {
+  padding: 0 6px;
+  color: var(--text-dim);
+}
+.porkchop header button:hover {
+  color: var(--text);
+}
+.pc-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.pc-ramp {
+  width: 90px;
+  height: 8px;
+  border-radius: 2px;
+}
+.pc-plot {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+}
+.pc-yaxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.pc-axis-title {
+  color: var(--text-dim);
+  font-style: italic;
+}
+.pc-canvas-wrap {
+  position: relative;
+  aspect-ratio: 180 / 140;
+  cursor: crosshair;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+}
+.pc-canvas-wrap canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: auto;
+}
+.pc-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+}
+.pc-min,
+.pc-selected {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  padding: 0;
+}
+.pc-min {
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px rgba(5, 7, 13, 0.8);
+}
+.pc-selected {
+  border: 2px solid #6fd36f;
+  box-shadow: 0 0 0 2px rgba(5, 7, 13, 0.8);
+  pointer-events: none;
+}
+.pc-cross-x,
+.pc-cross-y {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+.pc-cross-x {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+.pc-cross-y {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.pc-tip {
+  position: absolute;
+  margin: 10px 0 0 10px;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  background: rgba(5, 7, 13, 0.92);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.pc-xaxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  padding-left: 50px;
+  font-size: 10px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .tt-dv {
+    display: none;
+  }
+  .tt-note {
+    display: none;
+  }
+}
