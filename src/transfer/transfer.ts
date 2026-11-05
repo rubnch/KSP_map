@@ -275,6 +275,7 @@ export class TransferProblem {
   /**
    * Hyperbolic ejection from a circular equatorial orbit: the periapsis must lie in the equator
    * and the velocity at the SOI edge must point along v∞. Returns null if no such orbit exists.
+   * For a slow escape that only just reaches the SOI edge, the exit is taken at apoapsis.
    */
   private ejectionGeometry(vinfVec: Vec3, vinf: number, alt: number) {
     const body = this.origin;
@@ -284,7 +285,8 @@ export class TransferProblem {
     const v0 = Math.sqrt(mu / r0);
     const vp = Math.sqrt(vinf * vinf + (2 * mu) / r0 - (2 * mu) / rsoi);
     const ecc = (r0 * vp * vp) / mu - 1;
-    if (ecc < 1 && (r0 * (1 + ecc)) / (1 - ecc) <= rsoi) return null;
+    // A slow escape (low v∞, common between moons) leaves the SOI at the ellipse's apoapsis:
+    // the clamps below put the exit there (ν = 180°, velocity at 90° to the radius).
     const cosNu = ((r0 * (1 + ecc)) / rsoi - 1) / ecc;
     const nu = Math.acos(Math.max(-1, Math.min(1, cosNu)));
     const zenith = Math.asin(Math.min(1, (r0 * vp) / (rsoi * vinf)));

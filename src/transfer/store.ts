@@ -9,7 +9,8 @@ interface TransferState {
   /** Origin body id; null = the pack's home body. */
   originId: string | null;
   /** Years shown on the timeline. */
-  spanYears: number;
+  /** Index into the origin's spans (2, 5, 10, 20 of its orbital periods). */
+  spanIndex: number;
   mode: TransferMode;
   /** Capture into a low circular orbit at the target (else: flyby / aerobrake, no capture burn). */
   capture: boolean;
@@ -20,7 +21,7 @@ interface TransferState {
   porkchopTargetId: string | null;
   setOpen: (open: boolean) => void;
   setOrigin: (id: string) => void;
-  setSpanYears: (y: number) => void;
+  setSpanIndex: (i: number) => void;
   setMode: (m: TransferMode) => void;
   setCapture: (c: boolean) => void;
   setInitialAltitude: (m: number | null) => void;
@@ -31,7 +32,7 @@ interface TransferState {
 export const useTransferStore = create<TransferState>((set) => ({
   open: typeof location !== 'undefined' && new URLSearchParams(location.search).has('transfers'),
   originId: null,
-  spanYears: 10,
+  spanIndex: 2,
   mode: 'optimal',
   capture: true,
   initialAltitude: null,
@@ -39,7 +40,7 @@ export const useTransferStore = create<TransferState>((set) => ({
   porkchopTargetId: null,
   setOpen: (open) => set({ open }),
   setOrigin: (originId) => set({ originId, initialAltitude: null, selected: null, porkchopTargetId: null }),
-  setSpanYears: (spanYears) => set({ spanYears }),
+  setSpanIndex: (spanIndex) => set({ spanIndex }),
   // Settings changes keep the selected transfer; the planner re-solves it with the new settings.
   setMode: (mode) => set({ mode }),
   setCapture: (capture) => set({ capture }),

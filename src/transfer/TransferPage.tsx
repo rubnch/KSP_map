@@ -6,7 +6,8 @@ import { useMapStore } from '../state/store.ts';
 import { PorkchopPanel } from './PorkchopPanel.tsx';
 import { originCandidates, problemFor, settingsFor, targetsOf, useTransferStore, type TransferOptions } from './store.ts';
 import { SystemDiagram } from './SystemDiagram.tsx';
-import { AltitudeInput, fmtKm, SPANS, Track, useWindows } from './Timeline.tsx';
+import { spansFor, tickStep } from './span.ts';
+import { AltitudeInput, fmtKm, Track, useWindows } from './Timeline.tsx';
 import { TransferDetails } from './TransferDetails.tsx';
 import './transfer.css';
 
@@ -60,7 +61,14 @@ function TransferPage() {
   const t = useTransferStore();
   const origin = system.find(t.originId ?? '') ?? system.home;
   const targets = useMemo(() => targetsOf(origin), [origin]);
-  const year = system.pack.calendar.yearLength;
+  const cal = system.pack.calendar;
+  // Spans scale with the origin's orbit: years between planets, days between moons.
+  const spans = useMemo(() => spansFor(origin, cal), [origin, cal]);
+  const span = spans[Math.min(t.spanIndex, spans.length - 1)]!.seconds;
+  const align = (time: number) => {
+    const step = tickStep(span, cal);
+    return Math.floor(time / step) * step;
+  };
 
   // The page is for planning: stop the clock while it is open.
   useEffect(() => {
@@ -76,9 +84,11 @@ function TransferPage() {
   }, []);
 
   // Fixed range that only moves with ◀ Now ▶ (never follows the clock).
-  const [rangeStart, setRangeStart] = useState(() => Math.floor(ut / year) * year);
-  const rangeEnd = rangeStart + t.spanYears * year;
-  const page = (dir: 1 | -1) => setRangeStart((s) => Math.max(0, s + dir * Math.max(1, t.spanYears / 2) * year));
+  const [rangeStart, setRangeStart] = useState(() => align(ut));
+  // A new origin or span starts again around the clock.
+  useEffect(() => setRangeStart(align(useMapStore.getState().ut)), [origin.id, span]);
+  const rangeEnd = rangeStart + span;
+  const page = (dir: 1 | -1) => setRangeStart((s) => Math.max(0, s + (dir * span) / 2));
   const clockOutside = ut < rangeStart || ut > rangeEnd;
 
   const options: TransferOptions = { mode: t.mode, capture: t.capture, initialAltitude: t.initialAltitude };
@@ -154,10 +164,10 @@ function TransferPage() {
         <section className="tp-card tp-timeline">
           <div className="tp-card-head">
             <h2>Windows from {origin.name}</h2>
-            <div className="tt-seg" role="group" aria-label="Years shown">
-              {SPANS.map((y) => (
-                <button key={y} className={t.spanYears === y ? 'on' : ''} onClick={() => t.setSpanYears(y)}>
-                  {y} years
+            <div className="tt-seg" role="group" aria-label="Time shown">
+              {spans.map((s, i) => (
+                <button key={s.label} className={t.spanIndex === i ? 'on' : ''} onClick={() => t.setSpanIndex(i)}>
+                  {s.label}
                 </button>
               ))}
             </div>
@@ -165,7 +175,7 @@ function TransferPage() {
               <button onClick={() => page(-1)} disabled={rangeStart === 0} aria-label="Earlier">
                 ◀
               </button>
-              <button className={clockOutside ? 'on' : ''} onClick={() => setRangeStart(Math.floor(ut / year) * year)}>
+              <button className={clockOutside ? 'on' : ''} onClick={() => setRangeStart(align(ut))}>
                 Now
               </button>
               <button onClick={() => page(1)} aria-label="Later">
@@ -180,7 +190,6 @@ function TransferPage() {
             from={rangeStart}
             to={rangeEnd}
             ut={ut}
-            yearLength={year}
             porkchopId={porkchopTarget?.id ?? null}
           />
           <p className="tt-note">
