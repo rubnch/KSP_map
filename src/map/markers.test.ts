@@ -23,10 +23,10 @@ describe('orbitMarkers', () => {
   });
 
   it('labels nodes with the inclination, signed like the game', () => {
-    const labels = orbitMarkers(system.get('Moho')).map((m) => m.label);
-    expect(labels).toContain('AN +7.0°');
-    expect(labels).toContain('DN \u22127.0°');
-    expect(orbitMarkers(system.get('Eve'))[0]!.node!.label).toBe('AN +2.1°');
+    const angles = orbitMarkers(system.get('Moho')).map((m) => `${m.label} ${m.angle ?? ''}`.trim());
+    expect(angles).toContain('AN +7.0°');
+    expect(angles).toContain('DN \u22127.0°');
+    expect(orbitMarkers(system.get('Eve'))[0]!.node).toEqual({ kind: 'an', label: 'AN', angle: '+2.1°' });
   });
 
   it('has none for the Sun', () => {

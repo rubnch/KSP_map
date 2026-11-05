@@ -11,10 +11,12 @@ export interface OrbitMarker {
   body: Body;
   /** Altitude above the parent's surface, metres (apsides only). */
   altitude?: number;
+  /** Signed relative inclination, e.g. `+7.0°` (nodes only). */
+  angle?: string;
   /** Position relative to the body's parent, metres. */
   position: Vec3;
   /** A node that falls on (or next to) this apsis, shown in the same label instead of on its own. */
-  node?: { kind: 'an' | 'dn'; label: string };
+  node?: { kind: 'an' | 'dn'; label: string; angle: string };
 }
 
 /** A node within this angle of an apsis is merged into the apsis' label. */
@@ -53,14 +55,14 @@ export function orbitMarkers(body: Body): OrbitMarker[] {
     const deg = o.i * (180 / Math.PI);
     const angle = deg.toFixed(deg < 1 ? 2 : 1);
     const nodes = [
-      { kind: 'an' as const, label: `AN +${angle}°`, nu: -o.argPe },
-      { kind: 'dn' as const, label: `DN \u2212${angle}°`, nu: Math.PI - o.argPe },
+      { kind: 'an' as const, label: 'AN', angle: `+${angle}°`, nu: -o.argPe },
+      { kind: 'dn' as const, label: 'DN', angle: `\u2212${angle}°`, nu: Math.PI - o.argPe },
     ];
     for (const n of nodes) {
       // Many orbits have their periapsis at a node (argument of periapsis 0° or 180°): one label.
       const apsis = angleBetween(n.nu, 0) < MERGE_ANGLE ? pe : angleBetween(n.nu, Math.PI) < MERGE_ANGLE ? ap : null;
-      if (apsis) apsis.node = { kind: n.kind, label: n.label };
-      else out.push(marker(n.kind, n.label, o.positionAtTrueAnomaly(n.nu)));
+      if (apsis) apsis.node = { kind: n.kind, label: n.label, angle: n.angle };
+      else out.push({ ...marker(n.kind, n.label, o.positionAtTrueAnomaly(n.nu)), angle: n.angle });
     }
   }
   return out;

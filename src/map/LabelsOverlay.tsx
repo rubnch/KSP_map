@@ -38,7 +38,13 @@ export function LabelsOverlay() {
           <span className="text">
             {m.label}
             {m.node && <span className={`marker-${m.node.kind}`}> · {m.node.label}</span>}
-            {m.altitude !== undefined && <small>{formatDistance(m.altitude)}</small>}
+            {m.altitude !== undefined && (
+              <small>
+                {formatDistance(m.altitude)}
+                {m.node && <span className={`marker-${m.node.kind}`}> · {m.node.angle}</span>}
+              </small>
+            )}
+            {m.angle && <small>{m.angle}</small>}
           </span>
         </div>
       ))}
