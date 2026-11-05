@@ -14,6 +14,21 @@ export function hohmannSpeeds(mu: number, r1: number, r2: number): { v1: number;
   return { v1: Math.sqrt(mu * (2 / r1 - 1 / a)), v2: Math.sqrt(mu * (2 / r2 - 1 / a)) };
 }
 
+/** Time along half a Hohmann ellipse between radii r1 and r2, s. */
+export const hohmannTime = (mu: number, r1: number, r2: number) => Math.PI * Math.sqrt(((r1 + r2) / 2) ** 3 / mu);
+
+/**
+ * How long the transfer into `to` from `from` takes: between sibling orbits, from the parent's low
+ * orbit out to a moon, or from a moon (or planet) down to its parent's low orbit.
+ */
+export function transferTime(from: Body, to: Body): number | null {
+  if (from.orbit && to.orbit && from.parent && from.parent === to.parent)
+    return hohmannTime(from.parent.mu, from.orbit.a, to.orbit.a);
+  if (to.orbit && to.parent === from) return hohmannTime(from.mu, lowOrbitRadius(from), to.orbit.a);
+  if (from.orbit && from.parent === to) return hohmannTime(to.mu, from.orbit.a, lowOrbitRadius(to));
+  return null;
+}
+
 /** Burn at periapsis of radius r turning a hyperbolic excess speed vInf into a parabolic orbit (Oberth included). */
 export function excessBurn(mu: number, r: number, vInf: number): number {
   const vEsc = escapeSpeed(mu, r);

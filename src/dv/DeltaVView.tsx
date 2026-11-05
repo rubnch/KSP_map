@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type PointerEvent } from 'react';
 import { useMapStore } from '../state/store.ts';
-import { ascentCost, hasSurface, syncOrbitRadius, type AscentSource } from './physics.ts';
+import { ascentCost, hasSurface, lowOrbitRadius, syncOrbitRadius, transferTime, type AscentSource } from './physics.ts';
 import {
   DvGraph,
   edgeCost,
@@ -165,7 +165,7 @@ export function DeltaVView() {
   const solar = useMemo(() => {
     const labels = new Map<string, number | null>();
     const planes = new Map<string, number>();
-    if (!from || !graph.nodes.has(from) || (to && !route)) return { labels, planes };
+    if (!from || !graph.nodes.has(from) || (to && !route)) return { labels, planes, origin: null as Body | null };
     const star = graph.system.root;
     const home = graph.system.home;
     const planetOf = (b: Body) => {
@@ -181,9 +181,9 @@ export function DeltaVView() {
         })
       : -1;
     const ejectEdge = route && k >= 0 ? route.edges[k]! : null;
-    if (route && !ejectEdge) return { labels, planes };
+    if (route && !ejectEdge) return { labels, planes, origin: null as Body | null };
     const origin = ejectEdge ? graph.node(ejectEdge.from).body : planetOf(graph.node(from).body);
-    if (origin === home || origin === star) return { labels, planes };
+    if (origin === home || origin === star) return { labels, planes, origin: null as Body | null };
     const arrivalOf = (r: LayoutRow) =>
       r.nodes[1] ? layout.edges.find((e) => e.from === r.nodes[0]!.id && e.to === r.nodes[1]!.id) : undefined;
     for (const r of layout.rows) {
@@ -211,7 +211,7 @@ export function DeltaVView() {
         else if (!ejectEdge && arrival) labels.set(arrival.id, edgeCost(capture, options));
       }
     }
-    return { labels, planes };
+    return { labels, planes, origin };
   }, [graph, layout, from, to, route, options]);
   const labels = new Map([...(view?.labels ?? []), ...solar.labels]);
   const preview = solar.labels;
@@ -329,6 +329,48 @@ export function DeltaVView() {
     return flat([a, { x: a.x, y: b.y }, b], (a.x + b.x) / 2, b.y);
   };
 
+  // Small print under a node, as on the community maps: orbit altitudes, and for an intercept how
+  // long the transfer there takes (from the picked departure's planet when there is one).
+  const home = graph.system.home;
+  const solarDay = (() => {
+    const rot = home.data.physical.rotationPeriod;
+    const year = home.orbit?.period ?? Infinity;
+    return Number.isFinite(year) ? (rot * year) / (year - rot) : rot;
+  })();
+  const year = (home.orbit?.period ?? Infinity) / solarDay;
+  const duration = (s: number) => {
+    const d = s / solarDay;
+    if (d < 3) return `${Math.max(1, Math.round(s / 3600))} hours`;
+    if (d < year) return `${Math.round(d)} days`;
+    const y = Math.floor(d / year);
+    return `${y} y ${Math.round(d - y * year)} d`;
+  };
+  const alt = (b: Body, r: number) => {
+    const m = r - b.radius;
+    return m >= 1e7 ? `${fmt(m / 1e6)} Mm` : `${fmt(m / 1000)} km`;
+  };
+  const detail = (node: DvNode): string | null => {
+    const b = node.body;
+    const low = lowOrbitRadius(b);
+    switch (node.kind) {
+      case 'low':
+        return alt(b, low);
+      case 'capture':
+        return Number.isFinite(b.soi) ? `${alt(b, low)} – ${alt(b, b.soi)}` : null;
+      case 'syncTransfer':
+        return `${alt(b, low)} – ${alt(b, syncOrbitRadius(b) ?? low)}`;
+      case 'intercept': {
+        const planetRow = b === star || b.parent === star;
+        const from = planetRow && solar.origin ? solar.origin : node.from;
+        if (!from || from === b) return null;
+        const t = transferTime(from, b);
+        return t === null ? null : duration(t);
+      }
+      default:
+        return null;
+    }
+  };
+
   // Names above the nodes over the row.
   const subLabel = (node: DvNode) => (
     <text y={-14}>
@@ -418,15 +460,6 @@ export function DeltaVView() {
                 d={`M${trunkX},${trunk.top + (starRow ? 0 : 16)} V${trunk.bottom - 16}`}
                 style={{ stroke: shade(star.data.style.color, !!view) }}
               />
-              {starRow ? (
-                <text x={trunkX - 14} y={trunk.top + ROW / 2 + 4} style={{ textAnchor: 'end' }}>
-                  {star.name} orbit
-                </text>
-              ) : (
-                <text x={trunkX} y={trunk.top - 18}>
-                  {star.name} orbit
-                </text>
-              )}
             </g>
           )}
           {/* Between two rows that hang off the same node: along the trunk, not up to the node. */}
@@ -544,7 +577,8 @@ export function DeltaVView() {
               >
                 <circle r={14} className="hit" />
                 <g transform={n.sub ? 'scale(0.85)' : undefined}>
-                  <NodeIcon kind={node.kind} />
+                  {/* The star's arrival is an ellipse down to periapsis: drawn like a capture. */}
+                  <NodeIcon kind={node.kind === 'intercept' && !node.body.parent ? 'capture' : node.kind} />
                 </g>
                 {/* The row's last node sits by the body's name, and its ring says what it is. */}
                 {n.sub
@@ -558,6 +592,27 @@ export function DeltaVView() {
                     ) : (
                       <text y={25}>{shortLabel(node)}</text>
                     ))}
+                {!n.sub &&
+                  (() => {
+                    const d = detail(node);
+                    if (!d) return null;
+                    // On the star's row: beside the node, left of the low orbit (its name is on the right).
+                    const end = rowEnds.has(n.id);
+                    return starRow?.nodes.some((m) => m.id === n.id) ? (
+                      <text
+                        x={end ? -16 : 16}
+                        y={end ? 4 : 17}
+                        className="detail"
+                        style={{ textAnchor: end ? 'end' : 'start' }}
+                      >
+                        {d}
+                      </text>
+                    ) : (
+                      <text y={end ? 25 : 37} className="detail">
+                        {d}
+                      </text>
+                    );
+                  })()}
                 <title>{nodeLabel(node)}</title>
               </g>
             );
@@ -611,7 +666,7 @@ export function DeltaVView() {
 }
 
 const LEGEND: { kind: NodeKind; label: string }[] = [
-  { kind: 'intercept', label: 'Intercept: entering the SOI (at the star: periapsis)' },
+  { kind: 'intercept', label: 'Intercept: entering the SOI' },
   { kind: 'capture', label: 'Capture/Escape: elliptical orbit to the SOI edge' },
   { kind: 'syncTransfer', label: 'Transfer up to synchronous orbit' },
   { kind: 'sync', label: 'Synchronous orbit' },

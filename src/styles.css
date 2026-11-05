@@ -544,6 +544,11 @@ button {
   stroke: var(--route-end);
   stroke-width: 4;
 }
+.dv-node text.detail {
+  font-size: 9.5px;
+  font-style: italic;
+  opacity: 0.8;
+}
 .dv-node.from text {
   fill: var(--route-start);
   font-weight: 700;
