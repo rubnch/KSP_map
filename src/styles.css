@@ -8,7 +8,12 @@
   --accent: #7fb2ff;
   --route-start: #4ade80;
   --route-end: #ff6b8a;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   font-size: 14px;
   color: var(--text);
   background: var(--bg);
@@ -306,7 +311,9 @@ button {
   user-select: none;
   font-size: 12px;
   color: var(--text);
-  text-shadow: 0 0 3px #000, 0 0 6px #000;
+  text-shadow:
+    0 0 3px #000,
+    0 0 6px #000;
 }
 .body-label .dot {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
@@ -441,36 +448,63 @@ button {
 }
 .dv-line {
   fill: none;
-  stroke-width: 3;
+  stroke-width: 14;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.75;
 }
-.dv-line.on-route {
+.dv-line.dim {
+  opacity: 0.3;
+}
+/* The route: a white outline under its lines. */
+.dv-halo {
+  fill: none;
   stroke: #fff;
-  stroke-width: 5;
-  opacity: 1;
+  stroke-width: 22;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
+/* Numbers sit inside the lines, white with a dark edge so they read on light lines too. */
 .dv-edge-label text {
-  fill: var(--text);
+  fill: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
   text-anchor: middle;
   font-variant-numeric: tabular-nums;
   paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 2.5px;
+}
+.dv-edge-label.ink text:not(.plane) {
+  fill: #1a1d24;
+  stroke: rgba(255, 255, 255, 0.35);
+}
+.dv-edge-label.ink .mark,
+.dv-edge-label.ink .mark.on {
+  fill: #1a1d24;
+}
+.dv-edge-label.dim {
+  opacity: 0.4;
+}
+.dv-edge-label .mark {
+  fill: rgba(255, 255, 255, 0.75);
+  font-weight: 400;
+}
+.dv-edge-label .mark.on {
+  fill: #fff;
+  font-weight: 700;
+}
+.dv-edge-label text.plane {
+  fill: var(--text-dim);
+  font-size: 10px;
+  font-weight: 400;
+  font-style: italic;
   stroke: var(--bg);
   stroke-width: 3px;
 }
-.dv-edge-label .aero-mark {
-  fill: #ff9a5c;
-  font-weight: 700;
-}
-.dv-edge-label .plane {
-  fill: var(--text-dim);
-  font-size: 10px;
-}
 .dv-trunk path {
   fill: none;
-  stroke-width: 5;
-  opacity: 0.8;
+  stroke-width: 14;
+  stroke-linecap: round;
 }
 .dv-trunk text {
   fill: var(--text-dim);
@@ -481,8 +515,8 @@ button {
 }
 .dv-body-name {
   fill: var(--text);
-  font-weight: 600;
-  font-size: 13px;
+  font-weight: 700;
+  font-size: 19px;
 }
 .dv-node {
   cursor: pointer;
@@ -491,9 +525,19 @@ button {
 .dv-node .hit {
   fill: transparent;
 }
-.dv-node :is(circle:not(.hit), rect) {
-  stroke: var(--bg);
-  stroke-width: 2;
+/* Node icons: a white ring with a sketch of the orbit inside. */
+.dv-node .ring {
+  fill: var(--bg);
+  stroke: #e9edf2;
+  stroke-width: 2.4;
+}
+.dv-node .inner {
+  fill: none;
+  stroke: #e9edf2;
+  stroke-width: 1.5;
+}
+.dv-node .dot {
+  fill: #e9edf2;
 }
 .dv-node text {
   fill: var(--text-dim);
@@ -503,15 +547,15 @@ button {
   stroke: var(--bg);
   stroke-width: 3px;
 }
-.dv-node:hover :is(circle:not(.hit), rect),
-.dv-node:focus-visible :is(circle:not(.hit), rect) {
+.dv-node:hover .ring,
+.dv-node:focus-visible .ring {
   stroke: var(--accent);
 }
-.dv-node.from :is(circle:not(.hit), rect) {
+.dv-node.from .ring {
   stroke: var(--route-start);
   stroke-width: 4;
 }
-.dv-node.to :is(circle:not(.hit), rect) {
+.dv-node.to .ring {
   stroke: var(--route-end);
   stroke-width: 4;
 }
@@ -526,12 +570,12 @@ button {
 .dv-land {
   fill: var(--text);
   font-weight: 400;
-  font-size: 11px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 .dv-land.worst {
   fill: var(--text-dim);
-  font-size: 10px;
+  font-size: 11px;
 }
 .dv-ends {
   margin: 10px 0 0;
@@ -555,8 +599,9 @@ button {
   fill: var(--text);
 }
 .dv-edge-label .route-value {
-  fill: #fff;
-  font-weight: 700;
+  text-decoration: underline;
+  stroke-width: 3.5px;
+  stroke: #000;
 }
 .dv-node.via text {
   fill: var(--text);
@@ -672,7 +717,45 @@ button {
   margin: 10px 0 0;
 }
 
+.dv-legend {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2;
+  padding: 8px 12px;
+  font-size: 12px;
+  display: grid;
+  gap: 2px;
+  color: var(--text-dim);
+}
+.dv-legend > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+}
+.dv-view .dv-legend svg {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  font-size: inherit;
+}
+.dv-legend .sym {
+  width: 26px;
+  text-align: center;
+  color: var(--text);
+  font-weight: 700;
+}
+.dv-legend .sym.plane {
+  font-weight: 400;
+  font-style: italic;
+  font-size: 11px;
+}
+
 @media (max-width: 720px) {
+  .dv-legend {
+    display: none;
+  }
   .dv-zoom {
     left: auto;
     right: 16px;
