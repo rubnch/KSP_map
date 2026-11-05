@@ -93,6 +93,18 @@ export function OrbitCard({ node, x, y }: { node: DvNode; x: number; y: number }
       text = `Periapsis ${km(sync! - R)}, apoapsis at the SOI edge`;
       break;
     case 'intercept': {
+      // The star has no SOI: the transfer falls in from a planet's orbit to periapsis at low orbit.
+      if (!b.parent) {
+        shape = (
+          <>
+            {circle(low, 'ghost')}
+            {ellipse(low, soi * 0.98)}
+            {pe(low)}
+          </>
+        );
+        text = `Periapsis ${km(low - R)}, falling from ${node.from?.name ?? 'a planet'}'s orbit`;
+        break;
+      }
       // A pass through the SOI, closest at the low orbit.
       const p = s(low);
       shape = (

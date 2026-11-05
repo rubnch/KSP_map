@@ -611,7 +611,7 @@ export function DeltaVView() {
 }
 
 const LEGEND: { kind: NodeKind; label: string }[] = [
-  { kind: 'intercept', label: 'Intercept: entering the SOI' },
+  { kind: 'intercept', label: 'Intercept: entering the SOI (at the star: periapsis)' },
   { kind: 'capture', label: 'Capture/Escape: elliptical orbit to the SOI edge' },
   { kind: 'syncTransfer', label: 'Transfer up to synchronous orbit' },
   { kind: 'sync', label: 'Synchronous orbit' },
@@ -671,7 +671,7 @@ function shortLabel(n: DvNode): string {
     case 'capture':
       return 'Capture/Escape';
     case 'intercept':
-      return 'Intercept';
+      return n.body.parent ? 'Intercept' : 'Periapsis';
   }
 }
 

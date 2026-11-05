@@ -348,6 +348,8 @@ export function nodeLabel(n: DvNode): string {
     case 'capture':
       return `${n.body.name} capture / escape`;
     case 'intercept':
+      // The star has no SOI to enter: its "intercept" is the low point of the transfer down to it.
+      if (!n.body.parent) return `${n.body.name} periapsis${n.from ? ` (from ${n.from.name})` : ''}`;
       return n.from ? `${n.body.name} intercept (from ${n.from.name})` : `${n.body.name} intercept`;
   }
 }
