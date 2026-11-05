@@ -74,6 +74,17 @@ describe('transfers from low Kerbin orbit', () => {
 });
 
 describe('synchronous orbits', () => {
+  it('can be left out of the map and routes', () => {
+    const plainGraph = new DvGraph(system, {}, { sync: false });
+    expect(plainGraph.nodes.has('Kerbin:sync')).toBe(false);
+    expect(plainGraph.nodes.has('Kerbin:syncTransfer')).toBe(false);
+    expect(findRoute(plainGraph, 'Kerbin:low', 'Kerbin:capture', plain)!.total).toBeCloseTo(
+      cost('Kerbin:low', 'Kerbin:capture'),
+    );
+    const l = layoutDvMap(plainGraph);
+    expect([...l.nodes.keys()].some((id) => id.includes(':sync'))).toBe(false);
+  });
+
   it('exist only where they fit inside the SOI', () => {
     for (const id of ['Kerbin', 'Eve', 'Duna', 'Jool', 'Minmus', 'Dres', 'Eeloo'])
       expect(g.nodes.has(`${id}:sync`)).toBe(true);

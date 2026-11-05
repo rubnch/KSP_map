@@ -13,9 +13,17 @@ export interface DvSettings {
   chutes: boolean;
   /** Plane changes are added at their worst case. */
   planeChanges: boolean;
+  /** Synchronous orbits are on the map (and in routes). */
+  sync: boolean;
 }
 
-const DEFAULT_SETTINGS: DvSettings = { roundTrip: false, aerobrake: false, chutes: false, planeChanges: false };
+const DEFAULT_SETTINGS: DvSettings = {
+  roundTrip: false,
+  aerobrake: false,
+  chutes: false,
+  planeChanges: false,
+  sync: true,
+};
 
 interface DvState extends DvSettings {
   from: string | null;
@@ -55,6 +63,7 @@ const settingsOf = (s: DvSettings): DvSettings => ({
   aerobrake: s.aerobrake,
   chutes: s.chutes,
   planeChanges: s.planeChanges,
+  sync: s.sync,
 });
 
 export const useDvStore = create<DvState>((set, get) => ({

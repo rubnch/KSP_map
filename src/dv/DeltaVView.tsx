@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type PointerEvent } from 'react';
 import { useMapStore } from '../state/store.ts';
 import { ascentCost, hasSurface, syncOrbitRadius, type AscentSource } from './physics.ts';
 import {
@@ -36,7 +36,8 @@ const SOURCE_LABEL: Record<AscentSource, string> = {
 function useDvGraph() {
   const system = useMapStore((s) => s.system);
   const overrides = useDvStore((s) => s.overrides);
-  const graph = useMemo(() => new DvGraph(system, overrides), [system, overrides]);
+  const sync = useDvStore((s) => s.sync);
+  const graph = useMemo(() => new DvGraph(system, overrides, { sync }), [system, overrides, sync]);
   return { graph };
 }
 
@@ -116,7 +117,12 @@ export function DeltaVView() {
   const trunk = trunkYs.length > 1 ? { top: Math.min(...trunkYs), bottom: Math.max(...trunkYs) } : null;
   const height = PAD_Y * 2 + (layout.height - 1) * ROW;
   const box = useRef<HTMLDivElement>(null);
-  const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{ node: DvNode; x: number; y: number } | null>(null);
+  const hoverAt = (node: DvNode) => (ev: PointerEvent) => {
+    if (ev.buttons) return;
+    const r = box.current!.getBoundingClientRect();
+    setHover({ node, x: ev.clientX - r.left, y: ev.clientY - r.top });
+  };
   const pz = usePanZoom(box, { width, height }, panelInsets);
   const shortcutEdges = new Set(view?.shortcuts.flatMap((sc) => [sc.up.id, sc.down.id]));
   const stubOn = layout.edges.some((e) => trunkEdge(e) && view?.edges.has(e.id) && !shortcutEdges.has(e.id));
@@ -297,11 +303,7 @@ export function DeltaVView() {
                 className={`dv-node${state}${n.sub ? ' sub' : ''}`}
                 transform={`translate(${p.x},${p.y})`}
                 onClick={() => pick(n.id)}
-                onPointerEnter={(ev) => {
-                  if (ev.buttons) return;
-                  const r = box.current!.getBoundingClientRect();
-                  setHover({ id: n.id, x: ev.clientX - r.left, y: ev.clientY - r.top });
-                }}
+                onPointerEnter={hoverAt(node)}
                 onPointerLeave={() => setHover(null)}
                 role="button"
                 tabIndex={0}
@@ -318,11 +320,33 @@ export function DeltaVView() {
               </g>
             );
           })}
+          {/* The home world's intercept: where arrivals from the other planets enter its SOI. Every
+              planet has its own intercept node in the graph; on the map they share this one. */}
+          {homeCap &&
+            trunk &&
+            (() => {
+              const col = homeCap.col - Math.sign(homeCap.col);
+              const node: DvNode = { id: 'home-intercept', body: graph.system.home, kind: 'intercept' };
+              return (
+                <g
+                  className={`dv-node${stubOn ? ' via' : ''}`}
+                  transform={`translate(${trunkX + col * COL},${pos(homeCap).y})`}
+                  onPointerEnter={hoverAt(node)}
+                  onPointerLeave={() => setHover(null)}
+                  aria-label={`${graph.system.home.name} intercept`}
+                >
+                  <circle r={13} className="hit" />
+                  <circle r={5.5} style={{ fill: graph.system.home.data.style.color }} />
+                  <text y={20}>Intercept</text>
+                  <title>{`${graph.system.home.name} intercept: arrivals from the other planets enter the SOI here`}</title>
+                </g>
+              );
+            })()}
         </g>
       </svg>
-      {hover && graph.nodes.has(hover.id) && (
+      {hover && (
         <OrbitCard
-          node={graph.node(hover.id)}
+          node={hover.node}
           // Beside the pointer, flipped to the other side near the right or bottom edge.
           x={hover.x + (hover.x > (box.current?.clientWidth ?? 0) - 520 ? -196 : 16)}
           y={Math.min(hover.y + 16, (box.current?.clientHeight ?? 0) - 230)}
@@ -460,6 +484,11 @@ const SETTINGS: { key: keyof DvSettings; label: string; hint: string }[] = [
     label: 'Plane changes',
     hint: 'Worst case: the full inclination gap, burned at the slowest point.',
   },
+  {
+    key: 'sync',
+    label: 'Synchronous orbits',
+    hint: 'Show the high capture, transfer and synchronous orbit nodes.',
+  },
 ];
 
 /** What the calculator counts: applies to the route, the map's numbers and the totals next to each name. */
@@ -468,7 +497,8 @@ export function DvSettingsPanel() {
   const store = useDvStore();
   // Closed by default so it doesn't cover the map; the summary line says what's on.
   const [open, setOpen] = useState(false);
-  const on = SETTINGS.filter((s) => store[s.key]).map((s) => s.label.replace(/ \(.\)$/, ''));
+  const on = SETTINGS.filter((s) => s.key !== 'sync' && store[s.key]).map((s) => s.label.replace(/ \(.\)$/, ''));
+  if (!store.sync) on.push('no synchronous orbits');
   return (
     <aside className="panel info-panel dv-settings" aria-label="Calculator settings">
       <header onClick={() => setOpen(!open)} aria-expanded={open} role="button" tabIndex={0}>

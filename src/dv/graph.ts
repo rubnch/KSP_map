@@ -81,14 +81,22 @@ export class DvGraph {
   readonly edges: DvEdge[] = [];
   readonly out = new Map<string, DvEdge[]>();
 
-  constructor(system: PlanetarySystem, ascentOverrides: Record<string, number | undefined> = {}) {
+  /** Synchronous orbits (and the nodes that lead to them) are part of the graph. */
+  readonly withSync: boolean;
+
+  constructor(
+    system: PlanetarySystem,
+    ascentOverrides: Record<string, number | undefined> = {},
+    { sync = true }: { sync?: boolean } = {},
+  ) {
     this.system = system;
+    this.withSync = sync;
     const bodies = system.bodies.filter((b) => b.parent);
     for (const b of bodies) {
       if (hasSurface(b)) this.addNode(b, 'surface');
       this.addNode(b, 'low');
       this.addNode(b, 'capture');
-      if (syncOrbitRadius(b)) {
+      if (this.syncRadius(b)) {
         this.addNode(b, 'syncTransfer');
         this.addNode(b, 'sync');
         this.addNode(b, 'syncCapture');
@@ -128,13 +136,17 @@ export class DvGraph {
     this.out.set(e.from, list);
   }
 
+  private syncRadius(b: Body): number | null {
+    return this.withSync ? syncOrbitRadius(b) : null;
+  }
+
   private addBodyEdges(b: Body, override: number | undefined) {
     const atm = hasAtmosphere(b);
     const r = lowOrbitRadius(b);
     const low = nodeId(b, 'low');
     const cap = nodeId(b, 'capture');
     const escape = escapeSpeed(b.mu, r) - circularSpeed(b.mu, r);
-    const rSync = syncOrbitRadius(b);
+    const rSync = this.syncRadius(b);
     // With a synchronous orbit, the escape is split at the transfer ellipse (below): the same
     // periapsis burn, stopped halfway.
     if (!rSync) {
@@ -227,13 +239,13 @@ export class DvGraph {
       aeroDv: hasAtmosphere(body) ? 0 : undefined,
     });
     // Or arrive with the periapsis at synchronous altitude: the high capture.
-    const rSync = syncOrbitRadius(body);
+    const rSync = this.syncRadius(body);
     if (rSync) this.addEdge({ from: intercept, to: nodeId(body, 'syncCapture'), dv: excessBurn(body.mu, rSync, vInf) });
   }
 
   /** Leave from the high capture orbit (periapsis at synchronous altitude): the way out of a synchronous orbit. */
   private addSyncDeparture(body: Body, intercept: string, vInf: number, plane: number) {
-    const rSync = syncOrbitRadius(body);
+    const rSync = this.syncRadius(body);
     if (rSync) {
       const dv = excessBurn(body.mu, rSync, vInf);
       this.addEdge({ from: nodeId(body, 'syncCapture'), to: intercept, dv, plane });
@@ -312,7 +324,7 @@ export function nodeLabel(n: DvNode): string {
     case 'capture':
       return `${n.body.name} capture / escape`;
     case 'intercept':
-      return `${n.body.name} intercept (from ${n.from!.name})`;
+      return n.from ? `${n.body.name} intercept (from ${n.from.name})` : `${n.body.name} intercept`;
   }
 }
 

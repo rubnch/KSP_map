@@ -146,7 +146,7 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     const cols: number[] = [];
     shown.forEach((_, i) => {
       const pair = i > 0 && [i - 1, i].every((j) => j === lowIdx || j === capIdx);
-      cols.push(i === 0 ? col0 : cols[i - 1]! + (pair ? CAPTURE_GAP : 1));
+      cols.push(i === 0 ? col0 : cols[i - 1]! + (pair && g.withSync ? CAPTURE_GAP : 1));
     });
     shown.forEach((id, i) => {
       const n = { id, col: side * cols[i]!, y: r.y };

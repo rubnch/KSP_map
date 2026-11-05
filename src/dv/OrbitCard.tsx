@@ -104,7 +104,7 @@ export function OrbitCard({ node, x, y }: { node: DvNode; x: number; y: number }
           <circle className="mark" cx={C - p} cy={C} r={2.5} />
         </>
       );
-      text = `Entering the SOI from ${node.from!.name}`;
+      text = node.from ? `Entering the SOI from ${node.from.name}` : 'Entering the SOI from another planet';
       break;
     }
   }
