@@ -376,6 +376,50 @@ button {
   height: 100%;
   font-size: 11px;
 }
+.dv-orbit-card {
+  position: absolute;
+  background: var(--bg);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  z-index: 3;
+  width: 180px;
+  padding: 8px 10px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  text-align: center;
+}
+.dv-orbit-card strong {
+  font-weight: 600;
+}
+.dv-orbit-card span {
+  color: var(--text-dim);
+}
+.dv-orbit-card .soi {
+  fill: none;
+  stroke: var(--text-dim);
+  stroke-dasharray: 3 3;
+  opacity: 0.6;
+}
+.dv-orbit-card .atm {
+  opacity: 0.25;
+}
+.dv-orbit-card .orbit {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+}
+.dv-orbit-card .ghost {
+  fill: none;
+  stroke: var(--text-dim);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+.dv-orbit-card .mark {
+  fill: #fff;
+}
 .dv-zoom {
   position: absolute;
   left: 16px;

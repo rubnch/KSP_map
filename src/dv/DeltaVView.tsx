@@ -14,6 +14,7 @@ import {
   type Route,
 } from './graph.ts';
 import { layoutDvMap, routeView, type LayoutNode } from './layout.ts';
+import { OrbitCard } from './OrbitCard.tsx';
 import { usePanZoom } from './panzoom.ts';
 import { useDvStore, type DvSettings } from './store.ts';
 
@@ -115,6 +116,7 @@ export function DeltaVView() {
   const trunk = trunkYs.length > 1 ? { top: Math.min(...trunkYs), bottom: Math.max(...trunkYs) } : null;
   const height = PAD_Y * 2 + (layout.height - 1) * ROW;
   const box = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
   const pz = usePanZoom(box, { width, height }, panelInsets);
   const shortcutEdges = new Set(view?.shortcuts.flatMap((sc) => [sc.up.id, sc.down.id]));
   const stubOn = layout.edges.some((e) => trunkEdge(e) && view?.edges.has(e.id) && !shortcutEdges.has(e.id));
@@ -293,6 +295,12 @@ export function DeltaVView() {
                 className={`dv-node${state}${n.sub ? ' sub' : ''}`}
                 transform={`translate(${p.x},${p.y})`}
                 onClick={() => pick(n.id)}
+                onPointerEnter={(ev) => {
+                  if (ev.buttons) return;
+                  const r = box.current!.getBoundingClientRect();
+                  setHover({ id: n.id, x: ev.clientX - r.left, y: ev.clientY - r.top });
+                }}
+                onPointerLeave={() => setHover(null)}
                 role="button"
                 tabIndex={0}
                 aria-label={nodeLabel(node)}
@@ -310,6 +318,14 @@ export function DeltaVView() {
           })}
         </g>
       </svg>
+      {hover && graph.nodes.has(hover.id) && (
+        <OrbitCard
+          node={graph.node(hover.id)}
+          // Beside the pointer, flipped to the other side near the right or bottom edge.
+          x={hover.x + (hover.x > (box.current?.clientWidth ?? 0) - 520 ? -196 : 16)}
+          y={Math.min(hover.y + 16, (box.current?.clientHeight ?? 0) - 230)}
+        />
+      )}
       <div className="dv-zoom panel" onClick={(ev) => ev.stopPropagation()}>
         <button onClick={() => pz.zoomBy(1.4)} aria-label="Zoom in">
           +
