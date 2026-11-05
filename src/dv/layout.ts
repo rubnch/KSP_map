@@ -156,14 +156,14 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
     ids.forEach((id, i) => i > 0 && edges.push(g.edge(ids[i - 1]!, id)!));
     if (attach) edges.push(attach);
     // Above the row: the synchronous orbit, straight above the transfer node (one burn up), and
-    // the high capture (periapsis at synchronous altitude), branching off before the capture node.
+    // the high capture (periapsis at synchronous altitude), straight above the intercept.
     if (tall) {
       const high = nodeId(b, 'syncCapture');
       const xfer = nodeId(b, 'syncTransfer');
       const capCol = cols[capIdx]!;
       const dir = Math.sign(cols[lowIdx]! - capCol);
       const y = r.y - SUB_ROWS;
-      put({ id: high, col: side * (capCol - 0.25 * dir), y, sub: true });
+      put({ id: high, col: side * (capCol - dir), y, sub: true });
       put({ id: sync, col: side * cols[shown.indexOf(xfer)]!, y, sub: true });
       const before = shown[capIdx - 1];
       const intercept = before && g.node(before).kind === 'intercept' ? before : null;
