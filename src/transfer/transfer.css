@@ -66,6 +66,10 @@
 .tt-seg button {
   padding: 2px 8px;
 }
+.tt-seg button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 .tt-seg button.on {
   background: var(--accent);
   color: #05070d;
