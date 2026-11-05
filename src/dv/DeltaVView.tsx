@@ -256,7 +256,7 @@ export function DvPanel() {
           </label>
           <label className="dv-toggle">
             <input type="checkbox" checked={options.planeChanges} onChange={(e) => setPlaneChanges(e.target.checked)} />
-            Include plane changes (worst case, at the slowest point)
+            Include plane changes (full inclination gap, burned at the slowest point)
           </label>
           <AscentTable graph={graph} />
           <p className="dv-note">

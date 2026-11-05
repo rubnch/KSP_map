@@ -48,7 +48,7 @@ export interface DvEdge {
   dv: number;
   /** Cost when aerobraking is allowed; set only on edges that end inside an atmosphere's reach. */
   aeroDv?: number;
-  /** Worst-case plane change for this transfer, done at its slowest point, m/s. */
+  /** Plane change covering the full inclination gap, burned at the transfer's slowest point, m/s. The real cost at AN/DN depends on the date; the transfer timeline computes it per window. */
   plane?: number;
   /** Where the number comes from, for ascent and landing edges. */
   source?: AscentSource;
