@@ -40,7 +40,7 @@ export function SystemDiagram(props: { origin: Body; targets: Body[]; target: Bo
   // Dates the picture stands for: departure (and arrival) of the transfer, else the clock.
   const t0 = transfer ? transfer.departure : ut;
   const originAt = origin.orbit!.positionAt(t0);
-  const phase = transfer && target ? phaseWedge(originAt, transfer.phaseAngle) : null;
+  const phase = transfer && target ? phaseWedge(originAt, target.orbit!.positionAt(t0), transfer.phaseAngle) : null;
 
   return (
     <svg className="tp-diagram" viewBox={`0 0 ${SIZE} ${SIZE}`} role="img" aria-label={`Orbits around ${parent.name}`}>
@@ -56,6 +56,22 @@ export function SystemDiagram(props: { origin: Body; targets: Body[]; target: Bo
             stroke={b.data.style.orbitColor ?? b.data.style.color}
             strokeOpacity={strong ? 0.85 : 0.35}
             strokeWidth={strong ? 1.5 : 1}
+          />
+        );
+      })}
+
+      {/* Light lines from the parent to each body at the departure date: the phase angle sits between them. */}
+      {(target ? [origin, target] : [origin, ...targets]).map((b) => {
+        const [x, y] = xy(b.orbit!.positionAt(t0));
+        return (
+          <line
+            key={`ray-${b.id}`}
+            className="tp-ray"
+            x1={SIZE / 2}
+            y1={SIZE / 2}
+            x2={x}
+            y2={y}
+            stroke={b.data.style.color}
           />
         );
       })}
@@ -98,12 +114,13 @@ export function SystemDiagram(props: { origin: Body; targets: Body[]; target: Bo
 }
 
 /** Wedge from the origin's direction, turning by the phase angle (towards the target). */
-function phaseWedge(o: Vec3, phaseDeg: number) {
+function phaseWedge(o: Vec3, t: Vec3, phaseDeg: number) {
   const from = Math.atan2(o[1], o[0]);
   const to = from + phaseDeg / DEG;
   const mid = (from + to) / 2;
-  const r = Math.hypot(o[0], o[1]) * 0.4;
-  const lr = r * 0.62;
+  // Well inside both bodies, so the rays to them stay visible beyond the wedge.
+  const r = Math.min(Math.hypot(o[0], o[1]), Math.hypot(t[0], t[1])) * 0.3;
+  const lr = r * 1.45;
   return { from, to, r, label: [lr * Math.cos(mid), lr * Math.sin(mid)] as [number, number] };
 }
 

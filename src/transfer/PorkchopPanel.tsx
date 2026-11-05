@@ -30,7 +30,8 @@ export function PorkchopPanel({ origin, target }: { origin: Body; target: Body }
   const center =
     selected?.targetId === target.id ? selected.transfer.departure : ut + Math.min(problem.synodicPeriod, 2 * origin.orbit!.period) / 2;
   const [range, setRange] = useState(() => porkchopRange(problem, center));
-  useEffect(() => setRange(porkchopRange(problem, center)), [problem, target.id]);
+  // A new target re-centres the plot; a settings change (Optimal / Ballistic, orbits) keeps it where it is.
+  useEffect(() => setRange(porkchopRange(problem, center)), [target.id, origin.id]);
   // A window picked on the timeline that is off the plot: move the plot to it.
   const selDep = selected?.targetId === target.id ? selected.transfer.departure : null;
   useEffect(() => {

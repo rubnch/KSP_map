@@ -521,6 +521,11 @@
   stroke: #05070d;
   stroke-width: 3px;
 }
+.tp-ray {
+  stroke-opacity: 0.6;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
 .tp-phase path {
   fill: rgba(255, 179, 92, 0.18);
   stroke: rgba(255, 179, 92, 0.7);

@@ -4,7 +4,7 @@ import { formatUt } from '../core/index.ts';
 import { cameraRequest } from '../map/MapView.tsx';
 import { useMapStore } from '../state/store.ts';
 import { PorkchopPanel } from './PorkchopPanel.tsx';
-import { originCandidates, settingsFor, targetsOf, useTransferStore, type TransferOptions } from './store.ts';
+import { originCandidates, problemFor, settingsFor, targetsOf, useTransferStore, type TransferOptions } from './store.ts';
 import { SystemDiagram } from './SystemDiagram.tsx';
 import { AltitudeInput, fmtKm, SPANS, Track, useWindows } from './Timeline.tsx';
 import { TransferDetails } from './TransferDetails.tsx';
@@ -85,6 +85,16 @@ function TransferPage() {
   const windows = useWindows(origin, targets, rangeStart, rangeEnd, options);
 
   const selectedTarget = t.selected ? system.find(t.selected.targetId) ?? null : null;
+
+  // Same departure and flight time, re-solved when the settings change.
+  useEffect(() => {
+    const sel = useTransferStore.getState().selected;
+    if (!sel) return;
+    const target = system.find(sel.targetId);
+    if (!target || target.parent !== origin.parent) return;
+    const tr = problemFor(origin, target, options).transfer(sel.transfer.departure, sel.transfer.timeOfFlight);
+    useTransferStore.getState().select(tr && Number.isFinite(tr.dv) ? { targetId: target.id, transfer: tr } : null);
+  }, [t.mode, t.capture, t.initialAltitude]);
   const porkchopTarget =
     (t.porkchopTargetId && targets.find((b) => b.id === t.porkchopTargetId)) || selectedTarget || targets[0] || null;
 

@@ -40,9 +40,10 @@ export const useTransferStore = create<TransferState>((set) => ({
   setOpen: (open) => set({ open }),
   setOrigin: (originId) => set({ originId, initialAltitude: null, selected: null, porkchopTargetId: null }),
   setSpanYears: (spanYears) => set({ spanYears }),
-  setMode: (mode) => set({ mode, selected: null }),
-  setCapture: (capture) => set({ capture, selected: null }),
-  setInitialAltitude: (initialAltitude) => set({ initialAltitude, selected: null }),
+  // Settings changes keep the selected transfer; the planner re-solves it with the new settings.
+  setMode: (mode) => set({ mode }),
+  setCapture: (capture) => set({ capture }),
+  setInitialAltitude: (initialAltitude) => set({ initialAltitude }),
   select: (selected) => set({ selected }),
   openPorkchop: (porkchopTargetId) => set({ porkchopTargetId }),
 }));
