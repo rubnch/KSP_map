@@ -1,9 +1,10 @@
 /**
- * Subway-style layout of the delta-v map, rooted at the home world.
+ * Subway-style layout of the delta-v map, rooted at one body: the home world by default, or the
+ * start of the route being planned, so every leg of that route has its own line and its own cost.
  *
- * The displayed tree is the cheapest-path tree from the home surface (no aerobraking, no plane
+ * The displayed tree is the cheapest-path tree from the root's surface (no aerobraking, no plane
  * changes, so it doesn't jump when the toggles change). Each body is one horizontal row,
- * read left to right as travelling away from home: intercept → capture → low orbit → surface.
+ * read left to right as travelling away from the root: intercept → capture → low orbit → surface.
  * A row hangs below the node it branches from, one column to the right.
  */
 import type { Body } from '../core/index.ts';
@@ -19,7 +20,7 @@ export interface LayoutRow {
   body: Body;
   row: number;
   nodes: LayoutNode[];
-  /** Edge from another row into this row's first node; null for the home row. */
+  /** Edge from another row into this row's first node; null for the root row. */
   attach: DvEdge | null;
   /** A one-node row for the body's synchronous orbit, hanging off its low orbit. */
   sync?: boolean;
@@ -35,16 +36,16 @@ export interface DvLayout {
 
 const ORDER: NodeKind[] = ['intercept', 'capture', 'low', 'surface'];
 
-/** The body a trip from home arrives at `y` from: a sibling on home's side, or y's parent. */
-function naturalOrigin(g: DvGraph, y: Body): Body {
-  const homeLine = [g.system.home, ...g.system.ancestors(g.system.home)];
-  if (homeLine.includes(y)) return homeLine[homeLine.indexOf(y) - 1]!; // home is (inside) one of y's moons
+/** The body a trip from the root arrives at `y` from: a sibling on the root's side, or y's parent. */
+function naturalOrigin(g: DvGraph, root: Body, y: Body): Body {
+  const homeLine = [root, ...g.system.ancestors(root)];
+  if (homeLine.includes(y)) return homeLine[homeLine.indexOf(y) - 1]!; // the root is (inside) one of y's moons
   const sibling = homeLine.find((h) => h.parent === y.parent);
   return sibling ?? y.parent!;
 }
 
-export function layoutDvMap(g: DvGraph): DvLayout {
-  const home = g.system.home;
+export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
+  const home = root.parent ? root : g.system.home;
   const start = g.nodes.has(nodeId(home, 'surface')) ? nodeId(home, 'surface') : nodeId(home, 'low');
   const plain = { aerobrake: false, planeChanges: false };
 
@@ -57,7 +58,7 @@ export function layoutDvMap(g: DvGraph): DvLayout {
       chains.set(b, (['surface', 'low', 'capture'] as const).map((k) => nodeId(b, k)).filter((id) => g.nodes.has(id)));
       continue;
     }
-    const intercept = nodeId(b, 'intercept', naturalOrigin(g, b));
+    const intercept = nodeId(b, 'intercept', naturalOrigin(g, home, b));
     if (!g.nodes.has(intercept)) continue;
     const { dist } = shortestPaths(g, start, plain, hierarchyPath(g, home, b));
     let best: DvEdge | null = null;
@@ -124,8 +125,9 @@ export interface RouteOverlay {
 }
 
 /**
- * How to show a route on the map. The map only draws transfers from the home world, so a leg
- * like Moho → Eve has no line of its own. Hidden intercept nodes stand in for a drawn intercept
+ * How to show a route on the map. The map only draws transfers from its root, so a route that
+ * doesn't start there (rare, since the map is redrawn from the route's start) can use legs with
+ * no line of their own. Hidden intercept nodes stand in for a drawn intercept
  * of the same body (the mirror of the same transfer first, e.g. Eeloo's intercept from Kerbin
  * for Kerbin's intercept from Eeloo). Where the drawn line between the stand-ins carries the
  * same cost, it is highlighted; otherwise the leg is drawn over it with its own number.
