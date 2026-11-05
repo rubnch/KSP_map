@@ -357,6 +357,22 @@ button {
 .marker-dn {
   color: #ffb35c;
 }
+/* Nodes put their text on the left so it doesn't collide with a nearby apsis label. */
+.orbit-marker.marker-an,
+.orbit-marker.marker-dn {
+  position: relative;
+}
+.orbit-marker.marker-an > .text,
+.orbit-marker.marker-dn > .text {
+  position: absolute;
+  right: 100%;
+  margin-right: 4px;
+  text-align: right;
+}
+/* An apsis that is also a node: orange core in the blue diamond. */
+.orbit-marker.has-node .tick {
+  background: #ffb35c;
+}
 
 /* Toolbar row of toggles */
 .toolbar-row {
