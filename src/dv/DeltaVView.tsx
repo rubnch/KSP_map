@@ -30,6 +30,12 @@ const fmt = (v: number) => Math.round(v).toLocaleString('en-US');
 
 type Pt = { x: number; y: number };
 
+/**
+ * A line's colour, or when dimmed the same colour mixed into the background: opaque, so lines that
+ * overlap (shared trunks) don't add up into darker and lighter shades the way transparency does.
+ */
+const shade = (color: string, dim: boolean) => (dim ? `color-mix(in srgb, ${color} 30%, var(--bg))` : color);
+
 /** The dark tag behind a number that the picked route or start changed. */
 function Pill({ x, y, text, transform }: { x: number; y: number; text: string; transform?: string }) {
   const w = text.length * 7 + 12;
@@ -270,6 +276,7 @@ export function DeltaVView() {
    * middle of the line, turned along it on vertical stretches. `a` and `b` are its two ends, in the
    * edge's direction.
    */
+  const onRoute = (e: DvEdge) => !!view?.edges.has(e.id) && !shortcutEdges.has(e.id);
   const lineColor = (e: DvEdge) => (trunkEdge(e) ? star.data.style.color : graph.node(e.from).body.data.style.color);
   const geometry = (e: DvEdge) => {
     const a = pos(layout.nodes.get(e.from)!);
@@ -403,8 +410,7 @@ export function DeltaVView() {
               {/* Dimmed with the rest when a route is picked: the route's own stretch is redrawn. */}
               <path
                 d={`M${trunkX},${trunk.top} V${trunk.bottom}`}
-                className={view ? 'dim' : undefined}
-                style={{ stroke: star.data.style.color }}
+                style={{ stroke: shade(star.data.style.color, !!view) }}
               />
               <text x={trunkX} y={trunk.top - 18}>
                 {star.name} orbit
@@ -429,29 +435,32 @@ export function DeltaVView() {
               />
             );
           })}
-          {layout.edges.map((e) => {
-            // Colour by the row a line leaves from, so shared vertical trunks keep one colour; the
-            // solar trunk takes the star's colour.
-            const color = lineColor(e);
-            const on = view?.edges.has(e.id) && !shortcutEdges.has(e.id);
-            return (
-              <path
-                key={e.id}
-                d={rounded(geometry(e).pts)}
-                className={`dv-line${view && !on ? ' dim' : ''}`}
-                style={{ stroke: color }}
-              />
-            );
-          })}
           {/* Between two rows that hang off the same node: along the trunk, not up to the node. */}
           {/* The home branch: from the trunk to the home capture node, no burn of its own. */}
           {homeCap && trunk && (
             <path
               d={`M${trunkX},${pos(homeCap).y} H${pos(homeCap).x}`}
-              className={`dv-line${view && !stubOn ? ' dim' : ''}`}
-              style={{ stroke: star.data.style.color }}
+              className="dv-line"
+              style={{ stroke: shade(star.data.style.color, !!view && !stubOn) }}
             />
           )}
+          {/* Lines off the route first, so the route's own lines are never covered. */}
+          {[...layout.edges]
+            .sort((a, b) => Number(onRoute(a)) - Number(onRoute(b)))
+            .map((e) => {
+              // Colour by the row a line leaves from, so shared vertical trunks keep one colour; the
+              // solar trunk takes the star's colour.
+              const color = lineColor(e);
+              const on = onRoute(e);
+              return (
+                <path
+                  key={e.id}
+                  d={rounded(geometry(e).pts)}
+                  className="dv-line"
+                  style={{ stroke: shade(color, !!view && !on) }}
+                />
+              );
+            })}
           {homeCap &&
             trunk &&
             preview.has('home-eject') &&

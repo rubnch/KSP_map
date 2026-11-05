@@ -452,9 +452,6 @@ button {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.dv-line.dim {
-  opacity: 0.3;
-}
 /* The route: a white outline under its lines. */
 .dv-halo {
   fill: none;
@@ -501,9 +498,6 @@ button {
   fill: none;
   stroke-width: 14;
   stroke-linecap: round;
-}
-.dv-trunk path.dim {
-  opacity: 0.3;
 }
 .dv-trunk text {
   fill: var(--text-dim);
