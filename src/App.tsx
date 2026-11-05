@@ -6,6 +6,7 @@ import { InfoPanel } from './ui/InfoPanel.tsx';
 import { TimeControls } from './ui/TimeControls.tsx';
 import { KeyHints, Toolbar } from './ui/Toolbar.tsx';
 import { useKeyboard } from './ui/useKeyboard.ts';
+import { TransferLauncher } from './transfer/TransferPage.tsx';
 
 export default function App() {
   useKeyboard();
@@ -29,7 +30,10 @@ export default function App() {
         <Toolbar />
         <BodyList />
         <InfoPanel />
-        <TimeControls />
+        <div className="time-stack">
+          <TransferLauncher />
+          <TimeControls />
+        </div>
         <KeyHints />
       </div>
     </div>
