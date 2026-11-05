@@ -15,15 +15,12 @@ import {
 import { layoutDvMap, routeView, type LayoutNode } from './layout.ts';
 import { useDvStore } from './store.ts';
 
-const COL = 106;
+const COL = 98;
 const ROW = 52;
 const PAD_X = 28;
-const PAD_Y = 34;
+const PAD_Y = 56;
 const NAME_W = 190;
-/** How far below its row a synchronous orbit node sits. */
-const SUB_DY = 40;
 
-const x = (col: number) => PAD_X + col * COL;
 const fmt = (v: number) => Math.round(v).toLocaleString('en-US');
 
 const SOURCE_LABEL: Record<AscentSource, string> = {
@@ -64,18 +61,10 @@ export function DeltaVView() {
     [graph, layout, route, options],
   );
 
-  // Row positions: rows with a synchronous orbit under them are taller.
-  const rowY = useMemo(() => {
-    const out: number[] = [];
-    let acc = PAD_Y;
-    for (const r of layout.rows) {
-      out.push(acc);
-      acc += ROW + (r.tall ? SUB_DY : 0);
-    }
-    out.push(acc);
-    return out;
-  }, [layout]);
-  const pos = (n: LayoutNode) => ({ x: x(n.col), y: rowY[n.row]! + (n.sub ? SUB_DY : 0) });
+  // The trunk sits in the middle, with room for names on both sides.
+  const leftRoom = layout.minCol < 0 ? NAME_W : 0;
+  const trunkX = PAD_X + leftRoom - layout.minCol * COL;
+  const pos = (n: LayoutNode) => ({ x: trunkX + n.col * COL, y: PAD_Y + n.y * ROW });
 
   // From the home surface to each body's surface (or low orbit for gas giants).
   const landing = useMemo(() => {
@@ -94,8 +83,18 @@ export function DeltaVView() {
     return out;
   }, [graph, layout, options]);
 
-  const width = x(layout.cols - 1) + NAME_W + PAD_X;
-  const height = rowY[layout.rows.length - 1]! + PAD_Y + (layout.rows.at(-1)?.tall ? SUB_DY : 0);
+  const width = trunkX + layout.maxCol * COL + NAME_W + PAD_X;
+  // The solar trunk: from the first planet branch to the last.
+  const star = graph.system.root;
+  const trunkEdge = (e: DvEdge) =>
+    e.from === nodeId(graph.system.home, 'capture') &&
+    graph.node(e.to).kind === 'intercept' &&
+    graph.node(e.to).body.parent === star;
+  const trunkYs = layout.edges.filter(trunkEdge).map((e) => pos(layout.nodes.get(e.to)!).y);
+  const homeCap = layout.nodes.get(nodeId(graph.system.home, 'capture'));
+  if (homeCap) trunkYs.push(pos(homeCap).y);
+  const trunk = trunkYs.length > 1 ? { top: Math.min(...trunkYs), bottom: Math.max(...trunkYs) } : null;
+  const height = PAD_Y * 2 + (layout.height - 1) * ROW;
   const shortcutEdges = new Set(view?.shortcuts.flatMap((sc) => [sc.up.id, sc.down.id]));
 
   const geometry = (e: DvEdge) => {
@@ -111,7 +110,7 @@ export function DeltaVView() {
       // Beside the sync node, on the side of the node this leg comes from.
       return { d: `M${a.x},${a.y} L${b.x},${b.y}`, lx: sub.x + side * 10, ly: sub.y + 11, anchor: (side < 0 ? 'end' : 'start') as 'end' | 'start', a, b };
     }
-    if (an.row === bn.row) return { d: `M${a.x},${a.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y, anchor: undefined, a, b };
+    if (an.y === bn.y) return { d: `M${a.x},${a.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y, anchor: undefined, a, b };
     return { d: `M${a.x},${a.y} V${b.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y, anchor: undefined, a, b };
   };
 
@@ -178,9 +177,18 @@ export function DeltaVView() {
       }}
     >
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Delta-v map">
+        {trunk && (
+          <g className="dv-trunk">
+            <path d={`M${trunkX},${trunk.top - 22} V${trunk.bottom}`} style={{ stroke: star.data.style.color }} />
+            <text x={trunkX} y={trunk.top - 28}>
+              {star.name} orbit
+            </text>
+          </g>
+        )}
         {layout.edges.map((e) => {
-          // Colour by the row a line leaves from, so shared vertical trunks keep one colour.
-          const color = graph.node(e.from).body.data.style.color;
+          // Colour by the row a line leaves from, so shared vertical trunks keep one colour; the
+          // solar trunk takes the star's colour.
+          const color = trunkEdge(e) ? star.data.style.color : graph.node(e.from).body.data.style.color;
           const on = view?.edges.has(e.id) && !shortcutEdges.has(e.id);
           return (
             <path
@@ -208,10 +216,14 @@ export function DeltaVView() {
           const last = r.nodes[r.nodes.length - 1]!;
           const p = pos(last);
           const land = landing.get(r.body.id);
-          const nx = p.x + 24 + r.body.name.length * 8;
+          // Names sit beyond the last node, on the outer side; on the left they read leftwards.
+          const left = r.side < 0;
+          const anchor = left ? 'end' : 'start';
+          const nameX = p.x + (left ? -16 : 16);
+          const nx = nameX + (left ? -1 : 1) * (8 + r.body.name.length * 8);
           return (
-            <g key={`n-${r.body.id}`}>
-              <text x={p.x + 16} y={p.y + 4} className="dv-body-name">
+            <g key={`n-${r.body.id}`} textAnchor={anchor}>
+              <text x={nameX} y={p.y + 4} className="dv-body-name">
                 {r.body.name}
               </text>
               {land && (

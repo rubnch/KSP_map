@@ -1,26 +1,30 @@
 /**
- * Subway-style layout of the delta-v map, rooted at one body: the home world by default, or the
- * start of the route being planned, so every leg of that route has its own line and its own cost.
+ * Subway-style layout of the delta-v map, drawn from the home world.
  *
- * The displayed tree is the cheapest-path tree from the root's surface (no aerobraking, no plane
- * changes, so it doesn't jump when the toggles change). Each body is one horizontal row,
- * read left to right as travelling away from the root: intercept → capture → low orbit → surface.
- * A row hangs below the node it branches from, one column to the right.
+ * A vertical trunk down the middle stands for solar orbit: it runs through the home world's
+ * capture node, and every planet branches off it at its place in distance from the star,
+ * alternating left and right. Each body is one horizontal row reading outwards from the trunk:
+ * intercept → capture → low orbit → surface (the home row: capture → low orbit → surface).
+ * Moons hang below their planet's row, one column further out.
  */
 import type { Body } from '../core/index.ts';
 import { DvGraph, edgeCost, hierarchyPath, nodeId, shortestPaths, type DvEdge, type DvOptions, type NodeKind } from './graph.ts';
 
 export interface LayoutNode {
   id: string;
+  /** Columns from the trunk: positive to the right, negative to the left. */
   col: number;
-  row: number;
+  /** Rows from the top (fractional for the synchronous orbit, which sits under its row). */
+  y: number;
   /** Drawn just below its row, between two columns (the synchronous orbit under the low orbit). */
   sub?: boolean;
 }
 
 export interface LayoutRow {
   body: Body;
-  row: number;
+  y: number;
+  /** Which side of the trunk the row is on. */
+  side: 1 | -1;
   nodes: LayoutNode[];
   /** Edge from another row into this row's first node; null for the root row. */
   attach: DvEdge | null;
@@ -33,8 +37,14 @@ export interface DvLayout {
   nodes: Map<string, LayoutNode>;
   /** Edges drawn: inside rows and the connectors between them. */
   edges: DvEdge[];
-  cols: number;
+  minCol: number;
+  maxCol: number;
+  /** Total height in rows. */
+  height: number;
 }
+
+/** Extra height, in rows, of a row with a synchronous orbit under it. */
+export const SUB_ROWS = 0.8;
 
 const ORDER: NodeKind[] = ['intercept', 'capture', 'low', 'surface'];
 
@@ -83,43 +93,69 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
   const rows: LayoutRow[] = [];
   const nodes = new Map<string, LayoutNode>();
   const edges: DvEdge[] = [];
-  let cols = 0;
+  let minCol = 0;
+  let maxCol = 0;
+  const cursor = { y: 0 };
+  // Planets placed as their own branch off the trunk, not as children of the home row.
+  const blocks = new Set<Body>();
 
-  const place = (b: Body, col0: number) => {
+  const place = (b: Body, col0: number, side: 1 | -1) => {
     const ids = chains.get(b)!;
-    const row = rows.length;
+    // The home row reads outwards from the trunk too: capture, low orbit, surface.
+    const shown = b === home ? [...ids].reverse() : ids;
     const attach = attachOf.get(b) ?? null;
-    const r: LayoutRow = { body: b, row, nodes: [], attach };
+    const sync = nodeId(b, 'sync');
+    const lowIdx = shown.indexOf(nodeId(b, 'low'));
+    const capIdx = shown.indexOf(nodeId(b, 'capture'));
+    const tall = lowIdx >= 0 && capIdx >= 0 && g.nodes.has(sync);
+    const r: LayoutRow = { body: b, y: cursor.y, side, nodes: [], attach, tall };
     rows.push(r);
-    ids.forEach((id, i) => {
-      const n = { id, col: col0 + i, row };
+    cursor.y += 1 + (tall ? SUB_ROWS : 0);
+    const put = (n: LayoutNode) => {
+      nodes.set(n.id, n);
+      minCol = Math.min(minCol, n.col);
+      maxCol = Math.max(maxCol, n.col);
+    };
+    shown.forEach((id, i) => {
+      const n = { id, col: side * (col0 + i), y: r.y };
       r.nodes.push(n);
-      nodes.set(id, n);
-      cols = Math.max(cols, n.col + 1);
-      if (i > 0) edges.push(g.edge(ids[i - 1]!, id)!);
+      put(n);
     });
+    ids.forEach((id, i) => i > 0 && edges.push(g.edge(ids[i - 1]!, id)!));
     if (attach) edges.push(attach);
     // The synchronous orbit sits just under the row, between the low orbit (launches climb to it)
     // and the capture node (arrivals capture straight into it), joined to both.
-    const lowIdx = ids.indexOf(nodeId(b, 'low'));
-    const capIdx = ids.indexOf(nodeId(b, 'capture'));
-    const sync = nodeId(b, 'sync');
-    if (lowIdx >= 0 && capIdx >= 0 && g.nodes.has(sync)) {
-      const n = { id: sync, col: col0 + (lowIdx + capIdx) / 2, row, sub: true };
-      nodes.set(sync, n);
-      edges.push(g.edge(ids[lowIdx]!, sync)!);
-      edges.push({ id: `${ids[capIdx]}->${sync}`, from: ids[capIdx]!, to: sync, dv: 0, link: true });
-      r.tall = true;
+    if (tall) {
+      put({ id: sync, col: side * (col0 + (lowIdx + capIdx) / 2), y: r.y + SUB_ROWS, sub: true });
+      edges.push(g.edge(shown[lowIdx]!, sync)!);
+      edges.push({ id: `${shown[capIdx]}->${sync}`, from: shown[capIdx]!, to: sync, dv: 0, link: true });
     }
-    // Rightmost branch points first, so the vertical connectors of earlier nodes never cross rows.
-    for (let i = ids.length - 1; i >= 0; i--) {
-      const kids = (childrenOf.get(ids[i]!) ?? []).sort((x, y) => x.orbit!.a - y.orbit!.a);
-      for (const k of kids) place(k, col0 + i + 1);
+    // Outermost branch points first, so the connectors of inner nodes never cross rows.
+    for (let i = shown.length - 1; i >= 0; i--) {
+      const kids = (childrenOf.get(shown[i]!) ?? []).sort((x, y) => x.orbit!.a - y.orbit!.a);
+      for (const k of kids) if (!blocks.has(k)) place(k, col0 + i + 1, side);
     }
   };
 
-  if (chains.has(home)) place(home, 0);
-  return { rows, nodes, edges, cols };
+  if (chains.has(home) && home.parent && !home.parent.parent) {
+    // Planets around the star, by distance, alternating sides; a branch joins the trunk no higher
+    // than the one before it, so the trunk reads in order.
+    const sideY = { [1]: 0, [-1]: 0 } as Record<1 | -1, number>;
+    let lastJunction = -Infinity;
+    const planets = home.parent.children.filter((p) => chains.has(p)).sort((x, y) => x.orbit!.a - y.orbit!.a);
+    for (const p of planets) blocks.add(p);
+    planets.forEach((p, i) => {
+      const side: 1 | -1 = i % 2 === 0 ? 1 : -1;
+      cursor.y = Math.max(sideY[side], lastJunction + 1);
+      lastJunction = cursor.y;
+      place(p, p === home ? 0 : 1, side);
+      sideY[side] = cursor.y + 0.25;
+    });
+    cursor.y = Math.max(sideY[1], sideY[-1]);
+  } else if (chains.has(home)) {
+    place(home, 0, 1);
+  }
+  return { rows, nodes, edges, minCol, maxCol, height: cursor.y };
 }
 
 export interface RouteView {

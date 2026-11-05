@@ -397,6 +397,18 @@ button {
   fill: var(--text-dim);
   font-size: 10px;
 }
+.dv-trunk path {
+  fill: none;
+  stroke-width: 5;
+  opacity: 0.8;
+}
+.dv-trunk text {
+  fill: var(--text-dim);
+  text-anchor: middle;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 .dv-body-name {
   fill: var(--text);
   font-weight: 600;

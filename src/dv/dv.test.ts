@@ -114,8 +114,11 @@ describe('layout', () => {
 
   it('has one row per non-root body, home first', () => {
     expect(layout.rows.length).toBe(system.bodies.length - 1);
-    expect(layout.nodes.get('Kerbin:sync')).toMatchObject({ row: 0, sub: true });
-    expect(layout.rows[0]!.body.id).toBe('Kerbin');
+    expect(layout.nodes.get('Kerbin:sync')).toMatchObject({ sub: true });
+    expect(new Set(layout.rows.map((r) => r.body.id)).size).toBe(layout.rows.length);
+    // Planets join the trunk in order of distance from Kerbol.
+    const planets = layout.rows.filter((r) => r.body.parent === system.root).map((r) => r.body.id);
+    expect(planets).toEqual(['Moho', 'Eve', 'Kerbin', 'Duna', 'Dres', 'Jool', 'Eeloo']);
   });
 
   it('hangs Jool moons off the Jool capture node and the Mun off low Kerbin orbit', () => {
