@@ -96,6 +96,7 @@ export function DeltaVView() {
   const trunk = trunkYs.length > 1 ? { top: Math.min(...trunkYs), bottom: Math.max(...trunkYs) } : null;
   const height = PAD_Y * 2 + (layout.height - 1) * ROW;
   const shortcutEdges = new Set(view?.shortcuts.flatMap((sc) => [sc.up.id, sc.down.id]));
+  const stubOn = layout.edges.some((e) => trunkEdge(e) && view?.edges.has(e.id) && !shortcutEdges.has(e.id));
 
   const geometry = (e: DvEdge) => {
     const a = pos(layout.nodes.get(e.from)!);
@@ -109,6 +110,11 @@ export function DeltaVView() {
       const side = top.x < sub.x ? -1 : 1;
       // Beside the sync node, on the side of the node this leg comes from.
       return { d: `M${a.x},${a.y} L${b.x},${b.y}`, lx: sub.x + side * 10, ly: sub.y + 11, anchor: (side < 0 ? 'end' : 'start') as 'end' | 'start', a, b };
+    }
+    // Transfers from home leave from the trunk, where the home branch joins it.
+    if (trunkEdge(e)) {
+      const t = { x: trunkX, y: a.y };
+      return { d: `M${t.x},${t.y} V${b.y} H${b.x}`, lx: (t.x + b.x) / 2, ly: b.y, anchor: undefined, a: t, b };
     }
     if (an.y === bn.y) return { d: `M${a.x},${a.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y, anchor: undefined, a, b };
     return { d: `M${a.x},${a.y} V${b.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y, anchor: undefined, a, b };
@@ -200,6 +206,14 @@ export function DeltaVView() {
           );
         })}
         {/* Between two rows that hang off the same node: along the trunk, not up to the node. */}
+        {/* The home branch: from the trunk to the home capture node, no burn of its own. */}
+        {homeCap && trunk && (
+          <path
+            d={`M${trunkX},${pos(homeCap).y} H${pos(homeCap).x}`}
+            className={`dv-line${stubOn ? ' on-route' : ''}`}
+            style={{ stroke: stubOn ? undefined : star.data.style.color }}
+          />
+        )}
         {view?.shortcuts.map(({ up, down }) => {
           const a = geometry(up);
           const b = geometry(down);

@@ -1,10 +1,11 @@
 /**
  * Subway-style layout of the delta-v map, drawn from the home world.
  *
- * A vertical trunk down the middle stands for solar orbit: it runs through the home world's
- * capture node, and every planet branches off it at its place in distance from the star,
- * alternating left and right. Each body is one horizontal row reading outwards from the trunk:
- * intercept → capture → low orbit → surface (the home row: capture → low orbit → surface).
+ * A vertical trunk down the middle stands for solar orbit, and every planet branches off it at
+ * its place in distance from the star, alternating left and right. Each body is one horizontal
+ * row reading outwards from the trunk: intercept → capture → low orbit → surface. The home world
+ * has no intercept; its capture sits in the same column as everyone else's, and the transfers to
+ * other planets leave the trunk where the home branch joins it.
  * Moons hang below their planet's row, one column further out.
  */
 import type { Body } from '../core/index.ts';
@@ -148,7 +149,8 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
       const side: 1 | -1 = i % 2 === 0 ? 1 : -1;
       cursor.y = Math.max(sideY[side], lastJunction + 1);
       lastJunction = cursor.y;
-      place(p, p === home ? 0 : 1, side);
+      // Home has no intercept: its capture lines up with every other planet's capture.
+      place(p, p === home ? 2 : 1, side);
       sideY[side] = cursor.y + 0.25;
     });
     cursor.y = Math.max(sideY[1], sideY[-1]);
