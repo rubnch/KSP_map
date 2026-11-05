@@ -43,6 +43,7 @@ export function DeltaVView() {
   const from = useDvStore((s) => s.from);
   const to = useDvStore((s) => s.to);
   const pick = useDvStore((s) => s.pick);
+  const clear = useDvStore((s) => s.clear);
   const route = useMemo(
     () => (from && to && graph.nodes.has(from) && graph.nodes.has(to) ? findRoute(graph, from, to, options) : null),
     [graph, from, to, options],
@@ -76,7 +77,13 @@ export function DeltaVView() {
   };
 
   return (
-    <div className="dv-view">
+    <div
+      className="dv-view"
+      // A click anywhere but on a node drops the route.
+      onClick={(ev) => {
+        if (!(ev.target as Element).closest('.dv-node')) clear();
+      }}
+    >
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Delta-v map">
         {/* Connectors between rows, then in-row segments. */}
         {layout.edges.map((e) => {
