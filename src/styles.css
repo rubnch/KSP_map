@@ -6,6 +6,8 @@
   --text: #dbe4f3;
   --text-dim: #8b98ae;
   --accent: #7fb2ff;
+  --route-start: #4ade80;
+  --route-end: #ff6b8a;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   color: var(--text);
@@ -423,15 +425,38 @@ button {
 .dv-node:focus-visible circle:not(.hit) {
   stroke: var(--accent);
 }
-.dv-node.from circle:not(.hit),
-.dv-node.to circle:not(.hit) {
-  stroke: #fff;
-  stroke-width: 3;
+.dv-node.from circle:not(.hit) {
+  stroke: var(--route-start);
+  stroke-width: 4;
 }
-.dv-node.from text,
-.dv-node.to text {
-  fill: #fff;
+.dv-node.to circle:not(.hit) {
+  stroke: var(--route-end);
+  stroke-width: 4;
+}
+.dv-node.from text {
+  fill: var(--route-start);
   font-weight: 700;
+}
+.dv-node.to text {
+  fill: var(--route-end);
+  font-weight: 700;
+}
+.dv-land {
+  fill: var(--text-dim);
+  font-weight: 400;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.dv-ends {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.dv-ends .dot.start {
+  background: var(--route-start);
+}
+.dv-ends .dot.end {
+  background: var(--route-end);
 }
 .dv-node.via text {
   fill: var(--text);

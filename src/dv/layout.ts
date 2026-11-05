@@ -103,3 +103,26 @@ export function layoutDvMap(g: DvGraph): DvLayout {
   if (chains.has(home)) place(home, 0);
   return { rows, nodes, edges, cols };
 }
+
+/**
+ * Drawn edges to highlight for a route. A route can use nodes the map doesn't draw, such as
+ * Kerbin's intercept when coming back from Eeloo; those stand in for the drawn intercept of the
+ * same transfer (Eeloo's intercept from Kerbin), so a return trip lights up the same line.
+ */
+export function routeHighlight(g: DvGraph, layout: DvLayout, routeNodes: string[]): Set<string> {
+  const shown = (id: string): string | null => {
+    if (layout.nodes.has(id)) return id;
+    const n = g.node(id);
+    if (n.kind !== 'intercept') return null;
+    const mirror = nodeId(n.from!, 'intercept', n.body);
+    return layout.nodes.has(mirror) ? mirror : null;
+  };
+  const mapped = routeNodes.map(shown);
+  const pairs = new Set<string>();
+  for (let i = 1; i < mapped.length; i++) {
+    const a = mapped[i - 1];
+    const b = mapped[i];
+    if (a && b && a !== b) pairs.add(`${a}|${b}`).add(`${b}|${a}`);
+  }
+  return new Set(layout.edges.filter((e) => pairs.has(`${e.from}|${e.to}`)).map((e) => e.id));
+}

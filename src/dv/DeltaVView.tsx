@@ -1,15 +1,25 @@
 import { useMemo, useState } from 'react';
 import { useMapStore } from '../state/store.ts';
 import { ascentCost, hasSurface, type AscentSource } from './physics.ts';
-import { DvGraph, edgeCost, findRoute, nodeLabel, type DvEdge, type DvNode, type DvOptions } from './graph.ts';
-import { layoutDvMap } from './layout.ts';
+import {
+  DvGraph,
+  edgeCost,
+  findRoute,
+  legLabel,
+  nodeId,
+  nodeLabel,
+  type DvEdge,
+  type DvNode,
+  type DvOptions,
+} from './graph.ts';
+import { layoutDvMap, routeHighlight } from './layout.ts';
 import { useDvStore } from './store.ts';
 
 const COL = 124;
 const ROW = 52;
 const PAD_X = 28;
 const PAD_Y = 34;
-const NAME_W = 110;
+const NAME_W = 190;
 
 const x = (col: number) => PAD_X + col * COL;
 const y = (row: number) => PAD_Y + row * ROW;
@@ -48,7 +58,24 @@ export function DeltaVView() {
     () => (from && to && graph.nodes.has(from) && graph.nodes.has(to) ? findRoute(graph, from, to, options) : null),
     [graph, from, to, options],
   );
-  const onRoute = new Set(route?.edges.map((e) => e.id));
+  const onRoute = useMemo(
+    () => (route ? routeHighlight(graph, layout, route.nodes) : new Set<string>()),
+    [graph, layout, route],
+  );
+  // Launch from the home surface to each body's surface (or low orbit for gas giants).
+  const landing = useMemo(() => {
+    const home = graph.system.home;
+    const start = graph.nodes.has(nodeId(home, 'surface')) ? nodeId(home, 'surface') : nodeId(home, 'low');
+    const out = new Map<string, { total: number; orbitOnly: boolean }>();
+    for (const r of layout.rows) {
+      if (r.body === home) continue;
+      const surf = nodeId(r.body, 'surface');
+      const orbitOnly = !graph.nodes.has(surf);
+      const route = findRoute(graph, start, orbitOnly ? nodeId(r.body, 'low') : surf, options);
+      if (route) out.set(r.body.id, { total: route.total, orbitOnly });
+    }
+    return out;
+  }, [graph, layout, options]);
   const width = x(layout.cols - 1) + NAME_W + PAD_X;
   const height = y(layout.rows.length - 1) + PAD_Y;
 
@@ -111,6 +138,15 @@ export function DeltaVView() {
           return (
             <text key={`n-${r.body.id}`} x={x(last.col) + 16} y={y(r.row) + 4} className="dv-body-name">
               {r.body.name}
+              {landing.has(r.body.id) && (
+                <tspan className="dv-land" dx={8}>
+                  {fmt(landing.get(r.body.id)!.total)}
+                  {landing.get(r.body.id)!.orbitOnly ? ' to orbit' : ''}
+                  <title>
+                    {`From ${graph.system.home.name}'s surface to ${r.body.name}'s ${landing.get(r.body.id)!.orbitOnly ? 'low orbit' : 'surface'}, m/s`}
+                  </title>
+                </tspan>
+              )}
             </text>
           );
         })}
@@ -171,7 +207,7 @@ export function DvPanel() {
   return (
     <aside className="panel info-panel dv-panel" aria-label="Delta-v route">
       <header onClick={() => setOpen(!open)} aria-expanded={open} role="button" tabIndex={0}>
-        <span className="dot" style={{ background: 'var(--accent)' }} />
+        <span className="dot" style={{ background: 'var(--route-start)' }} />
         <h2>{route ? `${fmt(route.total)} m/s` : 'Δv route'}</h2>
         <span className="chevron">{open ? '▾' : '▸'}</span>
         <span className="kind">
@@ -184,11 +220,22 @@ export function DvPanel() {
       </header>
       {open && (
         <>
+          {from && (
+            <p className="dv-ends">
+              <span className="dot start" /> {nodeLabel(graph.node(from))}
+              {to && (
+                <>
+                  <br />
+                  <span className="dot end" /> {nodeLabel(graph.node(to))}
+                </>
+              )}
+            </p>
+          )}
           {route && (
             <ol className="dv-legs">
               {route.edges.map((e) => (
                 <li key={e.id}>
-                  <span>{nodeLabel(graph.node(e.to))}</span>
+                  <span>{legLabel(graph, e, options)}</span>
                   <span className="num">{fmt(edgeCost(e, options))}</span>
                 </li>
               ))}

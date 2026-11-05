@@ -260,3 +260,27 @@ export const shortKindLabel: Record<NodeKind, string> = {
   capture: 'Capture',
   intercept: 'Intercept',
 };
+
+/** What a leg of a route actually is, described as the burn (or the aerobrake) it stands for. */
+export function legLabel(g: DvGraph, e: DvEdge, o: DvOptions): string {
+  const a = g.node(e.from);
+  const b = g.node(e.to);
+  const aero = o.aerobrake && e.aeroDv !== undefined;
+  const A = a.body.name;
+  const B = b.body.name;
+  if (a.kind === 'surface') return `Launch to ${B} low orbit`;
+  if (b.kind === 'surface') return aero ? `Deorbit and aerobrake to ${B} surface` : `Land on ${B}`;
+  if (a.kind === 'low' && b.kind === 'capture') return `Escape burn at ${A}`;
+  if (a.kind === 'capture' && b.kind === 'low') return aero ? `Aerobrake into ${B} low orbit` : `Circularize at ${B} low orbit`;
+  if (b.kind === 'intercept') {
+    if (a.kind === 'low') return `Transfer burn from ${A} low orbit to ${B}`;
+    if (a.kind === 'capture' && b.body.parent === a.body) return `Lower apoapsis at ${A} to reach ${B}`;
+    return `Eject from ${A} toward ${B}`;
+  }
+  // From an intercept: arriving somewhere.
+  if (b.kind === 'capture') {
+    if (a.from && a.from.parent === b.body) return `Raise to escape at ${B}`;
+    return aero ? `Aerocapture at ${B}` : `Capture at ${B}`;
+  }
+  return aero ? `Aerobrake into ${B} low orbit` : `Circularize at ${B} low orbit`;
+}

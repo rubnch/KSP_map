@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import stock from '../../data/packs/stock.json';
 import { PlanetarySystem, type SystemPack } from '../core/index.ts';
-import { ascentCost, DvGraph, findRoute, layoutDvMap, vacuumAscent, type DvOptions } from './index.ts';
+import { ascentCost, DvGraph, findRoute, layoutDvMap, legLabel, routeHighlight, vacuumAscent, type DvOptions } from './index.ts';
 
 const system = new PlanetarySystem(stock as SystemPack);
 const g = new DvGraph(system);
@@ -108,6 +108,28 @@ describe('layout', () => {
     expect(row('Laythe').attach!.from).toBe('Jool:capture');
     expect(row('Mun').attach!.from).toBe('Kerbin:low');
     expect(row('Duna').attach!.from).toBe('Kerbin:capture');
+  });
+
+  it('highlights the same line for a trip and its return', () => {
+    const out = findRoute(g, 'Kerbin:surface', 'Eeloo:surface', plain)!;
+    const back = findRoute(g, 'Eeloo:surface', 'Kerbin:surface', plain)!;
+    const a = routeHighlight(g, layout, out.nodes);
+    const b = routeHighlight(g, layout, back.nodes);
+    expect(a.size).toBe(6);
+    expect([...b].sort()).toEqual([...a].sort());
+    expect(back.total).toBeCloseTo(out.total, 6);
+  });
+
+  it('describes return legs as the burns they are', () => {
+    const back = findRoute(g, 'Eeloo:surface', 'Kerbin:surface', { aerobrake: true, planeChanges: false })!;
+    expect(back.edges.map((e) => legLabel(g, e, { aerobrake: true, planeChanges: false }))).toEqual([
+      'Launch to Eeloo low orbit',
+      'Escape burn at Eeloo',
+      'Eject from Eeloo toward Kerbin',
+      'Aerocapture at Kerbin',
+      'Aerobrake into Kerbin low orbit',
+      'Deorbit and aerobrake to Kerbin surface',
+    ]);
   });
 
   it('draws every edge between placed nodes', () => {
