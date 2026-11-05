@@ -4,9 +4,8 @@ import { useMapStore } from '../state/store.ts';
 import { requestWindows } from './client.ts';
 import { settingsFor, useTransferStore, type TransferOptions } from './store.ts';
 import { defaultParkingAltitude } from './transfer.ts';
+import { tickLabel, tickStep } from './span.ts';
 import type { TransferWindow } from './windows.ts';
-
-export const SPANS = [2, 5, 10, 20];
 
 export type WindowsByTarget = Record<string, TransferWindow[] | 'loading' | 'error'>;
 
@@ -19,7 +18,7 @@ export function useWindows(origin: Body, targets: Body[], from: number, to: numb
     let alive = true;
     setState(Object.fromEntries(targets.map((b) => [b.id, 'loading'])));
     // Start a little before the range so a window that is open right now still shows.
-    const start = Math.max(0, from - pack.calendar.yearLength / 2);
+    const start = Math.max(0, from - (to - from) / 10);
     for (const target of targets) {
       requestWindows(pack, origin.id, target.id, settingsFor(origin, target, { mode, capture, initialAltitude }), start, to).then(
         (w) => alive && setState((s) => ({ ...s, [target.id]: w })),
@@ -44,11 +43,10 @@ export function Track(props: {
   from: number;
   to: number;
   ut: number;
-  yearLength: number;
   /** Target whose porkchop plot is showing. */
   porkchopId: string | null;
 }) {
-  const { origin, targets, windows, from, to, ut, yearLength } = props;
+  const { origin, targets, windows, from, to, ut } = props;
   const cal = useMapStore((s) => s.system.pack.calendar);
   const setUt = useMapStore((s) => s.setUt);
   const t = useTransferStore();
@@ -75,9 +73,9 @@ export function Track(props: {
     if (e.currentTarget.hasPointerCapture(e.pointerId)) setUt(timeAt(e.clientX));
   };
 
-  const years: number[] = [];
-  for (let y = Math.ceil(from / yearLength) * yearLength; y <= to; y += yearLength) years.push(y);
-  const yearStep = Math.max(1, Math.ceil(years.length / 10));
+  const step = tickStep(to - from, cal);
+  const ticks: number[] = [];
+  for (let x = Math.ceil(from / step) * step; x <= to; x += step) ticks.push(x);
 
   const choose = (target: Body, w: TransferWindow) => {
     t.select({ targetId: target.id, transfer: w.best });
@@ -111,15 +109,13 @@ export function Track(props: {
         onPointerLeave={() => setHover(null)}
       >
         <div className="tt-axis">
-          {years.map((y, i) =>
-            i % yearStep === 0 ? (
-              <span key={y} className="tt-year" style={{ left: `${pct(y)}%` }}>
-                Y{Math.round(y / yearLength) + 1}
-              </span>
-            ) : null,
-          )}
+          {ticks.map((x, i) => (
+            <span key={x} className="tt-year" style={{ left: `${pct(x)}%` }}>
+              {tickLabel(x, step, cal, i === 0)}
+            </span>
+          ))}
         </div>
-        {years.map((y) => (
+        {ticks.map((y) => (
           <div key={y} className="tt-gridline" style={{ left: `${pct(y)}%` }} />
         ))}
         {targets.map((b) => {

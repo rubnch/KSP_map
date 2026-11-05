@@ -4,6 +4,7 @@ import { length, PlanetarySystem, sub, type SystemPack, type Vec3 } from '../cor
 import { propagate } from './conics.ts';
 import { lambert } from './lambert.ts';
 import { TransferProblem, type TransferSettings } from './transfer.ts';
+import { spansFor, tickStep } from './span.ts';
 import { findWindows, porkchop, porkchopRange, predictWindows } from './windows.ts';
 
 const system = new PlanetarySystem(stock as SystemPack);
@@ -149,5 +150,25 @@ describe('porkchop', () => {
     expect(g.dv).toHaveLength(120 * 80);
     expect(Math.abs(g.min.departure - center) / DAY).toBeLessThan(12);
     expect(g.min.dv).toBeLessThan(1720);
+  });
+});
+
+describe('moon to moon', () => {
+  it('scales the timeline to the origin: years for planets, days for moons', () => {
+    const cal = system.pack.calendar;
+    expect(spansFor(system.get('Kerbin'), cal).map((s) => s.label)).toEqual(['2 years', '5 years', '10 years', '20 years']);
+    expect(spansFor(system.get('Laythe'), cal).map((s) => s.label)).toEqual(['5 days', '12 days', '25 days', '49 days']);
+    expect(tickStep(spansFor(system.get('Laythe'), cal)[2]!.seconds, cal)).toBe(5 * DAY);
+    expect(tickStep(10 * YEAR, cal)).toBe(YEAR);
+  });
+
+  it('finds Laythe → Vall windows a synodic period (about 5 days) apart', () => {
+    const p = problem('Laythe', 'Vall', 'optimal');
+    const ws = findWindows(p, 0, 25 * DAY);
+    expect(ws.length).toBeGreaterThanOrEqual(4);
+    for (let i = 1; i < ws.length; i++) {
+      expect((ws[i]!.best.departure - ws[i - 1]!.best.departure) / p.synodicPeriod).toBeCloseTo(1, 1);
+    }
+    for (const w of ws) expect(w.best.timeOfFlight / DAY).toBeLessThan(5);
   });
 });
