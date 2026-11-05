@@ -362,12 +362,43 @@ button {
 .dv-view {
   position: absolute;
   inset: 0;
-  overflow: auto;
-  padding: 110px 330px 24px 16px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.dv-view:active {
+  cursor: grabbing;
 }
 .dv-view svg {
   display: block;
+  width: 100%;
+  height: 100%;
   font-size: 11px;
+}
+.dv-view .caption {
+  fill: var(--text-dim);
+  font-size: 8.5px;
+  font-weight: 400;
+}
+.dv-zoom {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 2;
+  display: flex;
+  overflow: hidden;
+}
+.dv-zoom button {
+  min-width: 34px;
+  padding: 5px 10px;
+  border-right: 1px solid var(--panel-border);
+}
+.dv-zoom button:last-child {
+  border-right: 0;
+}
+.dv-zoom button:hover {
+  background: rgba(127, 178, 255, 0.15);
 }
 .dv-line {
   fill: none;
@@ -603,8 +634,11 @@ button {
 }
 
 @media (max-width: 720px) {
-  .dv-view {
-    padding: 110px 16px 45vh;
+  .dv-zoom {
+    left: auto;
+    right: 16px;
+    bottom: auto;
+    top: 150px;
   }
   .dv-hud {
     grid-template-rows: auto auto 1fr auto;

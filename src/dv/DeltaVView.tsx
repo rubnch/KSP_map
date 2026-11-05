@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMapStore } from '../state/store.ts';
 import { ascentCost, hasSurface, syncOrbitRadius, type AscentSource } from './physics.ts';
 import {
@@ -14,6 +14,7 @@ import {
   type Route,
 } from './graph.ts';
 import { layoutDvMap, routeView, type LayoutNode } from './layout.ts';
+import { usePanZoom } from './panzoom.ts';
 import { useDvStore, type DvSettings } from './store.ts';
 
 const COL = 98;
@@ -113,6 +114,10 @@ export function DeltaVView() {
   if (homeCap) trunkYs.push(pos(homeCap).y);
   const trunk = trunkYs.length > 1 ? { top: Math.min(...trunkYs), bottom: Math.max(...trunkYs) } : null;
   const height = PAD_Y * 2 + (layout.height - 1) * ROW;
+  const box = useRef<HTMLDivElement>(null);
+  const pz = usePanZoom(box, { width, height }, panelInsets);
+  // Zoomed in, connections say what they are and what the alternatives cost.
+  const detail = pz.view.k >= 1.3;
   const shortcutEdges = new Set(view?.shortcuts.flatMap((sc) => [sc.up.id, sc.down.id]));
   const stubOn = layout.edges.some((e) => trunkEdge(e) && view?.edges.has(e.id) && !shortcutEdges.has(e.id));
 
@@ -121,20 +126,11 @@ export function DeltaVView() {
     const b = pos(layout.nodes.get(e.to)!);
     const an = layout.nodes.get(e.from)!;
     const bn = layout.nodes.get(e.to)!;
-    // The synchronous orbit's two short legs: label on the outer side of each.
+    // The synchronous orbit hangs under its row: along the row to the spot above it, then straight down.
     if (bn.sub || an.sub) {
-      const top = bn.sub ? a : b;
       const sub = bn.sub ? b : a;
-      const side = top.x < sub.x ? -1 : 1;
-      // Beside the sync node, on the side of the node this leg comes from.
-      return {
-        d: `M${a.x},${a.y} L${b.x},${b.y}`,
-        lx: sub.x + side * 10,
-        ly: sub.y + 11,
-        anchor: (side < 0 ? 'end' : 'start') as 'end' | 'start',
-        a,
-        b,
-      };
+      const d = bn.sub ? `M${a.x},${a.y} H${b.x} V${b.y}` : `M${a.x},${a.y} V${b.y} H${b.x}`;
+      return { d, lx: sub.x, ly: sub.y, anchor: undefined, a, b };
     }
     // Transfers from home leave from the trunk, where the home branch joins it.
     if (trunkEdge(e)) {
@@ -158,6 +154,11 @@ export function DeltaVView() {
         <tspan className={routed ? 'route-value' : 'sync-cost'}>
           {value === null || value === undefined ? '—' : fmt(value)}
         </tspan>
+        {detail && up.burns && (
+          <tspan x={0} dy={12} className="caption">
+            two burns from low orbit: {fmt(up.burns[0])} + {fmt(up.burns[1])}
+          </tspan>
+        )}
         <title>
           {routed
             ? "This route's cost into or out of the synchronous orbit"
@@ -165,6 +166,30 @@ export function DeltaVView() {
         </title>
       </text>
     );
+  };
+
+  // What a connection is, and what it costs the other way (powered or with the atmosphere).
+  const caption = (e: DvEdge) => {
+    const a = graph.node(e.from);
+    const b = graph.node(e.to);
+    let what = '';
+    if (a.kind === 'surface') what = 'ascent';
+    else if (b.kind === 'surface') what = 'landing';
+    else if (a.kind === 'low' && b.kind === 'capture') what = 'escape';
+    else if (b.kind === 'low') what = 'circularize';
+    else if (b.kind === 'intercept') what = b.body.parent === a.body ? 'transfer' : 'ejection';
+    else if (b.kind === 'capture') what = a.from?.parent === b.body ? 'raise to escape' : 'capture';
+    const alt =
+      e.chuteDv !== undefined
+        ? options.chutes
+          ? `powered ${fmt(e.dv)}`
+          : `chutes ${fmt(e.chuteDv)}`
+        : e.aeroDv !== undefined
+          ? options.aerobrake
+            ? `powered ${fmt(e.dv)}`
+            : `aero ${fmt(e.aeroDv)}`
+          : '';
+    return alt ? `${what} · ${alt}` : what;
   };
 
   const edgeLabel = (e: DvEdge) => {
@@ -196,9 +221,14 @@ export function DeltaVView() {
             {!hasOverride && e.burns ? ` (burns: ${fmt(e.burns[0])} + ${fmt(e.burns[1])})` : ''}
           </title>
         </text>
-        {!hasOverride && e.plane !== undefined && e.plane >= 5 && !options.planeChanges && (
-          <text x={lx} y={ly + 13} className="plane">
-            +{fmt(e.plane)} plane
+        {detail && !hasOverride && (
+          <text x={lx} y={ly + 13} className="caption">
+            {caption(e)}
+          </text>
+        )}
+        {!hasOverride && e.plane !== undefined && e.plane >= 5 && (!options.planeChanges || detail) && (
+          <text x={lx} y={ly + (detail ? 24 : 13)} className="plane">
+            {options.planeChanges ? `incl. ${fmt(e.plane)} plane` : `+${fmt(e.plane)} plane`}
           </text>
         )}
       </g>
@@ -208,113 +238,134 @@ export function DeltaVView() {
   return (
     <div
       className="dv-view"
+      ref={box}
+      {...pz.handlers}
       // A click anywhere but on a node drops the route.
       onClick={(ev) => {
         if (!(ev.target as Element).closest('.dv-node')) clear();
       }}
     >
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Delta-v map">
-        {trunk && (
-          <g className="dv-trunk">
-            <path d={`M${trunkX},${trunk.top - 22} V${trunk.bottom}`} style={{ stroke: star.data.style.color }} />
-            <text x={trunkX} y={trunk.top - 28}>
-              {star.name} orbit
-            </text>
-          </g>
-        )}
-        {layout.edges.map((e) => {
-          // Colour by the row a line leaves from, so shared vertical trunks keep one colour; the
-          // solar trunk takes the star's colour.
-          const color = trunkEdge(e) ? star.data.style.color : graph.node(e.from).body.data.style.color;
-          const on = view?.edges.has(e.id) && !shortcutEdges.has(e.id);
-          return (
-            <path
-              key={e.id}
-              d={geometry(e).d}
-              className={`dv-line${on ? ' on-route' : ''}`}
-              style={{ stroke: on ? undefined : color }}
-            />
-          );
-        })}
-        {/* Between two rows that hang off the same node: along the trunk, not up to the node. */}
-        {/* The home branch: from the trunk to the home capture node, no burn of its own. */}
-        {homeCap && trunk && (
-          <path
-            d={`M${trunkX},${pos(homeCap).y} H${pos(homeCap).x}`}
-            className={`dv-line${stubOn ? ' on-route' : ''}`}
-            style={{ stroke: stubOn ? undefined : star.data.style.color }}
-          />
-        )}
-        {view?.shortcuts.map(({ up, down }) => {
-          const a = geometry(up);
-          const b = geometry(down);
-          return (
-            <path
-              key={`s-${up.id}`}
-              d={`M${a.b.x},${a.b.y} H${a.a.x} V${b.b.y} H${b.b.x}`}
-              className="dv-line on-route"
-            />
-          );
-        })}
-        {layout.edges.map((e) => edgeLabel(e))}
-        {layout.rows.map((r) => {
-          const last = r.nodes[r.nodes.length - 1]!;
-          const p = pos(last);
-          const land = landing.get(r.body.id);
-          // Names sit beyond the last node, on the outer side; on the left they read leftwards.
-          const left = r.side < 0;
-          const anchor = left ? 'end' : 'start';
-          const nameX = p.x + (left ? -16 : 16);
-          const nx = nameX + (left ? -1 : 1) * (8 + r.body.name.length * 8);
-          return (
-            <g key={`n-${r.body.id}`} textAnchor={anchor}>
-              <text x={nameX} y={p.y + 4} className="dv-body-name">
-                {r.body.name}
+      <svg role="img" aria-label="Delta-v map" className={detail ? 'detail' : undefined}>
+        <g transform={`translate(${pz.view.x},${pz.view.y}) scale(${pz.view.k})`}>
+          {trunk && (
+            <g className="dv-trunk">
+              <path d={`M${trunkX},${trunk.top - 22} V${trunk.bottom}`} style={{ stroke: star.data.style.color }} />
+              <text x={trunkX} y={trunk.top - 28}>
+                {star.name} orbit
               </text>
-              {land && (
-                <text x={nx} y={p.y + 1} className="dv-land">
-                  {fmt(land.total)}
-                  {land.orbitOnly ? ' to orbit' : ''}
-                  <title>{`From ${graph.system.home.name}'s surface to ${r.body.name}'s ${land.orbitOnly ? 'low orbit' : 'surface'}${roundTrip ? ' and back' : ''}, with the calculator settings, m/s`}</title>
-                </text>
-              )}
-              {land && !options.planeChanges && land.worst - land.total >= 5 && (
-                <text x={nx} y={p.y + 14} className="dv-land worst">
-                  {fmt(land.worst)}
-                  <title>Worst case, with the plane changes included, m/s</title>
-                </text>
-              )}
             </g>
-          );
-        })}
-        {[...layout.nodes.values()].map((n) => {
-          const node = graph.node(n.id);
-          const p = pos(n);
-          const state = n.id === from ? ' from' : n.id === to ? ' to' : route?.nodes.includes(n.id) ? ' via' : '';
-          return (
-            <g
-              key={n.id}
-              className={`dv-node${state}${n.sub ? ' sub' : ''}`}
-              transform={`translate(${p.x},${p.y})`}
-              onClick={() => pick(n.id)}
-              role="button"
-              tabIndex={0}
-              aria-label={nodeLabel(node)}
-              onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && pick(n.id)}
-            >
-              <circle r={13} className="hit" />
-              <circle
-                r={node.kind === 'surface' ? 7 : n.sub ? 4.5 : 5.5}
-                style={{ fill: node.body.data.style.color }}
+          )}
+          {layout.edges.map((e) => {
+            // Colour by the row a line leaves from, so shared vertical trunks keep one colour; the
+            // solar trunk takes the star's colour.
+            const color = trunkEdge(e) ? star.data.style.color : graph.node(e.from).body.data.style.color;
+            const on = view?.edges.has(e.id) && !shortcutEdges.has(e.id);
+            return (
+              <path
+                key={e.id}
+                d={geometry(e).d}
+                className={`dv-line${on ? ' on-route' : ''}`}
+                style={{ stroke: on ? undefined : color }}
               />
-              {n.sub ? syncLabel(node) : <text y={20}>{shortLabel(node)}</text>}
-              <title>{nodeLabel(node)}</title>
-            </g>
-          );
-        })}
+            );
+          })}
+          {/* Between two rows that hang off the same node: along the trunk, not up to the node. */}
+          {/* The home branch: from the trunk to the home capture node, no burn of its own. */}
+          {homeCap && trunk && (
+            <path
+              d={`M${trunkX},${pos(homeCap).y} H${pos(homeCap).x}`}
+              className={`dv-line${stubOn ? ' on-route' : ''}`}
+              style={{ stroke: stubOn ? undefined : star.data.style.color }}
+            />
+          )}
+          {view?.shortcuts.map(({ up, down }) => {
+            const a = geometry(up);
+            const b = geometry(down);
+            return (
+              <path
+                key={`s-${up.id}`}
+                d={`M${a.b.x},${a.b.y} H${a.a.x} V${b.b.y} H${b.b.x}`}
+                className="dv-line on-route"
+              />
+            );
+          })}
+          {layout.edges.map((e) => edgeLabel(e))}
+          {layout.rows.map((r) => {
+            const last = r.nodes[r.nodes.length - 1]!;
+            const p = pos(last);
+            const land = landing.get(r.body.id);
+            // Names sit beyond the last node, on the outer side; on the left they read leftwards.
+            const left = r.side < 0;
+            const anchor = left ? 'end' : 'start';
+            const nameX = p.x + (left ? -16 : 16);
+            const nx = nameX + (left ? -1 : 1) * (8 + r.body.name.length * 8);
+            return (
+              <g key={`n-${r.body.id}`} textAnchor={anchor}>
+                <text x={nameX} y={p.y + 4} className="dv-body-name">
+                  {r.body.name}
+                </text>
+                {land && (
+                  <text x={nx} y={p.y + 1} className="dv-land">
+                    {fmt(land.total)}
+                    {land.orbitOnly ? ' to orbit' : ''}
+                    <title>{`From ${graph.system.home.name}'s surface to ${r.body.name}'s ${land.orbitOnly ? 'low orbit' : 'surface'}${roundTrip ? ' and back' : ''}, with the calculator settings, m/s`}</title>
+                  </text>
+                )}
+                {land && !options.planeChanges && land.worst - land.total >= 5 && (
+                  <text x={nx} y={p.y + 14} className="dv-land worst">
+                    {fmt(land.worst)}
+                    <title>Worst case, with the plane changes included, m/s</title>
+                  </text>
+                )}
+              </g>
+            );
+          })}
+          {[...layout.nodes.values()].map((n) => {
+            const node = graph.node(n.id);
+            const p = pos(n);
+            const state = n.id === from ? ' from' : n.id === to ? ' to' : route?.nodes.includes(n.id) ? ' via' : '';
+            return (
+              <g
+                key={n.id}
+                className={`dv-node${state}${n.sub ? ' sub' : ''}`}
+                transform={`translate(${p.x},${p.y})`}
+                onClick={() => pick(n.id)}
+                role="button"
+                tabIndex={0}
+                aria-label={nodeLabel(node)}
+                onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && pick(n.id)}
+              >
+                <circle r={13} className="hit" />
+                <circle
+                  r={node.kind === 'surface' ? 7 : n.sub ? 4.5 : 5.5}
+                  style={{ fill: node.body.data.style.color }}
+                />
+                {n.sub ? syncLabel(node) : <text y={20}>{shortLabel(node)}</text>}
+                <title>{nodeLabel(node)}</title>
+              </g>
+            );
+          })}
+        </g>
       </svg>
+      <div className="dv-zoom panel" onClick={(ev) => ev.stopPropagation()}>
+        <button onClick={() => pz.zoomBy(1.4)} aria-label="Zoom in">
+          +
+        </button>
+        <button onClick={() => pz.zoomBy(1 / 1.4)} aria-label="Zoom out">
+          −
+        </button>
+        <button onClick={pz.fit} aria-label="Fit the whole map">
+          Fit
+        </button>
+      </div>
     </div>
   );
+}
+
+/** Room the floating panels take: the toolbar on the left, the route panel on the right. */
+function panelInsets() {
+  if (typeof window === 'undefined' || window.innerWidth <= 720) return { top: 150, right: 8, bottom: 8, left: 8 };
+  return { top: 16, right: 330, bottom: 64, left: 16 };
 }
 
 function shortLabel(n: DvNode): string {
