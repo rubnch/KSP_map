@@ -469,7 +469,9 @@ export function DeltaVView() {
           {/* The home branch: from the trunk to the home capture node, no burn of its own. */}
           {homeCap && trunk && (
             <path
-              d={`M${trunkX},${pos(homeCap).y} H${pos(homeCap).x}`}
+              // From the home intercept: the transfers draw the stretch to the trunk with its rounded
+              // corners, so no line end shows at the trunk.
+              d={`M${trunkX + (homeCap.col - Math.sign(homeCap.col)) * COL},${pos(homeCap).y} H${pos(homeCap).x}`}
               className="dv-line"
               style={{ stroke: shade(star.data.style.color, !!view && !stubOn) }}
             />
