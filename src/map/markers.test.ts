@@ -1,25 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import stock from '../../data/packs/stock.json';
 import { PlanetarySystem, type SystemPack } from '../core/index.ts';
-import { focusMarkers } from './markers.ts';
+import { orbitMarkers } from './markers.ts';
 
 const system = new PlanetarySystem(stock as SystemPack);
 
-describe('focusMarkers', () => {
-  it('shows the planets\' apsides when looking at the Sun', () => {
-    const keys = focusMarkers(system.root).map((m) => m.key);
-    for (const planet of ['Moho', 'Eve', 'Duna', 'Dres', 'Jool', 'Eeloo']) {
-      expect(keys).toContain(`${planet}-ap`);
-      expect(keys).toContain(`${planet}-pe`);
-    }
-    expect(keys.some((k) => k.endsWith('-an') || k.endsWith('-dn'))).toBe(false);
-    expect(new Set(keys).size).toBe(keys.length);
+describe('orbitMarkers', () => {
+  it('shows Ap and Pe on a perfectly circular orbit (Kerbin around the Sun)', () => {
+    const markers = orbitMarkers(system.get('Kerbin'));
+    expect(markers.map((m) => m.kind)).toEqual(['pe', 'ap']);
+    expect(markers[0]!.altitude).toBeCloseTo(markers[1]!.altitude!, 0);
   });
 
-  it('keeps the focused body\'s own Ap/Pe/AN/DN and adds its moons\' apsides', () => {
-    const keys = focusMarkers(system.get('Duna')).map((m) => m.key);
-    expect(keys).toEqual(expect.arrayContaining(['Duna-ap', 'Duna-pe', 'Duna-an', 'Duna-dn']));
-    // Ike's orbit is nearly circular but not quite.
-    expect(keys).toEqual(expect.arrayContaining(['Ike-ap', 'Ike-pe']));
+  it('adds AN/DN on an inclined orbit', () => {
+    expect(orbitMarkers(system.get('Moho')).map((m) => m.kind)).toEqual(['pe', 'ap', 'an', 'dn']);
+  });
+
+  it('has none for the Sun', () => {
+    expect(orbitMarkers(system.root)).toEqual([]);
   });
 });

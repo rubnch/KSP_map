@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { add, sub, type Body, type Vec3 } from '../core/index.ts';
 import { useMapStore, WARP_STEPS } from '../state/store.ts';
-import { focusMarkers } from './markers.ts';
+import { orbitMarkers } from './markers.ts';
 import { labelElements, markerElements } from './overlay.ts';
 import { SCALE, writeThree } from './scale.ts';
 
@@ -45,7 +45,7 @@ export function SystemScene() {
   const soiMesh = useRef<THREE.Mesh>(null);
 
   const focus = system.get(focusId);
-  const markers = useMemo(() => focusMarkers(focus), [focus]);
+  const markers = useMemo(() => orbitMarkers(focus), [focus]);
 
   const tmp = useMemo(() => new THREE.Vector3(), []);
   const scratch = useMemo(() => new Float64Array(3), []);
@@ -133,12 +133,13 @@ export function SystemScene() {
       }
     }
 
-    // Ap/Pe/AN/DN markers on the focused body's orbit and Ap/Pe on its children's orbits, each
-    // anchored at the orbit's parent. A child's markers hide along with its orbit line.
-    for (const m of markers) {
-      const el = markerElements.get(m.key);
-      if (!el || !m.body.parent) continue;
-      placeElement(el, project(add(rel.get(m.body.parent.id)!, m.position)), shown(m.body));
+    // Ap/Pe/AN/DN markers on the focused body's orbit, which is anchored at its parent.
+    if (focus.parent) {
+      const parentRel = rel.get(focus.parent.id)!;
+      for (const m of markers) {
+        const el = markerElements.get(m.key);
+        if (el) placeElement(el, project(add(parentRel, m.position)), true);
+      }
     }
   });
 

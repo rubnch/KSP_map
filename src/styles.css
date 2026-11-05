@@ -348,9 +348,6 @@ button {
 .marker-dn {
   color: #ffb35c;
 }
-.orbit-marker.is-child {
-  opacity: 0.7;
-}
 
 @media (max-width: 720px) {
   .hud {

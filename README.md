@@ -16,7 +16,7 @@ An interactive, browser-based map of Kerbal Space Program planetary systems: nav
 | Top-down view | 2D button |
 | Set the date | Click the clock |
 
-Hovering a body shows its sphere of influence. The focused body's orbit shows Ap/Pe and AN/DN markers, and the orbits of the bodies around it (the planets when looking at the Sun) show their Ap/Pe. AN/DN are where the orbit crosses the reference plane its inclination is measured from (Kerbol's equator in stock, which is also Kerbin's orbit and every body's equator). The URL keeps the focused body (`?focus=Duna`) and accepts `?ut=` in seconds.
+Hovering a body shows its sphere of influence. The focused body's orbit shows Ap/Pe and AN/DN markers. The URL keeps the focused body (`?focus=Duna`) and accepts `?ut=` in seconds.
 
 ## Development
 
