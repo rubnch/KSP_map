@@ -471,14 +471,13 @@ button {
   text-anchor: middle;
   font-variant-numeric: tabular-nums;
   paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.55);
-  stroke-width: 2.5px;
+  /* One outline on every line, dark enough for the light ones; round joins keep it off the
+     glyphs' corners (the 1's flag spiked with mitred joins). */
+  stroke: rgba(0, 0, 0, 0.85);
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
-/* Light lines (the star's yellow, white bodies): white numbers need a solid dark outline. */
-.dv-edge-label.ink text:not(.plane) {
-  stroke: rgba(0, 0, 0, 0.9);
-  stroke-width: 3.5px;
-}
+
 .dv-edge-label.dim {
   opacity: 0.4;
 }
