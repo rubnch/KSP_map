@@ -22,6 +22,13 @@ describe('orbitMarkers', () => {
     expect(summary('Dres')).toEqual(['pe', 'ap', 'an', 'dn']); // 90°
   });
 
+  it('labels nodes with the inclination, signed like the game', () => {
+    const labels = orbitMarkers(system.get('Moho')).map((m) => m.label);
+    expect(labels).toContain('AN +7.0°');
+    expect(labels).toContain('DN \u22127.0°');
+    expect(orbitMarkers(system.get('Eve'))[0]!.node!.label).toBe('AN +2.1°');
+  });
+
   it('has none for the Sun', () => {
     expect(orbitMarkers(system.root)).toEqual([]);
   });

@@ -49,9 +49,12 @@ export function orbitMarkers(body: Body): OrbitMarker[] {
   const ap = marker('ap', 'Ap', o.positionAtTrueAnomaly(Math.PI), o.apoapsis - parent.radius);
   const out = [pe, ap];
   if (o.i > 1e-4) {
+    // Like the game: the relative inclination, positive at the ascending node, negative at the descending one.
+    const deg = o.i * (180 / Math.PI);
+    const angle = deg.toFixed(deg < 1 ? 2 : 1);
     const nodes = [
-      { kind: 'an' as const, label: 'AN', nu: -o.argPe },
-      { kind: 'dn' as const, label: 'DN', nu: Math.PI - o.argPe },
+      { kind: 'an' as const, label: `AN +${angle}°`, nu: -o.argPe },
+      { kind: 'dn' as const, label: `DN \u2212${angle}°`, nu: Math.PI - o.argPe },
     ];
     for (const n of nodes) {
       // Many orbits have their periapsis at a node (argument of periapsis 0° or 180°): one label.
