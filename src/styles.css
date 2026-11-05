@@ -381,22 +381,6 @@ button {
   stroke-width: 5;
   opacity: 1;
 }
-.dv-extra path {
-  fill: none;
-  stroke: #fff;
-  stroke-width: 3;
-  stroke-dasharray: 7 5;
-}
-.dv-extra text {
-  fill: #fff;
-  font-weight: 700;
-  font-size: 12px;
-  text-anchor: middle;
-  font-variant-numeric: tabular-nums;
-  paint-order: stroke;
-  stroke: var(--bg);
-  stroke-width: 4px;
-}
 .dv-edge-label text {
   fill: var(--text);
   text-anchor: middle;
@@ -457,10 +441,6 @@ button {
   fill: var(--route-end);
   font-weight: 700;
 }
-.dv-sync-name {
-  fill: var(--text-dim);
-  font-size: 11px;
-}
 .dv-land {
   fill: var(--text);
   font-weight: 400;
@@ -481,6 +461,20 @@ button {
 }
 .dv-ends .dot.end {
   background: var(--route-end);
+}
+.dv-node text.sub-label {
+  text-anchor: start;
+}
+.dv-node .route-value {
+  fill: #fff;
+  font-weight: 700;
+}
+.dv-node .sync-cost {
+  fill: var(--text);
+}
+.dv-edge-label .route-value {
+  fill: #fff;
+  font-weight: 700;
 }
 .dv-node.via text {
   fill: var(--text);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import stock from '../../data/packs/stock.json';
 import { PlanetarySystem, type SystemPack } from '../core/index.ts';
-import { ascentCost, DvGraph, findRoute, layoutDvMap, legLabel, routeOverlay, vacuumAscent, type DvOptions } from './index.ts';
+import { ascentCost, DvGraph, findRoute, layoutDvMap, legLabel, routeView, vacuumAscent, type DvOptions } from './index.ts';
 
 const system = new PlanetarySystem(stock as SystemPack);
 const g = new DvGraph(system);
@@ -113,8 +113,8 @@ describe('layout', () => {
   const layout = layoutDvMap(g);
 
   it('has one row per non-root body, home first', () => {
-    const syncs = [...g.nodes.values()].filter((n) => n.kind === 'sync').length;
-    expect(layout.rows.length).toBe(system.bodies.length - 1 + syncs);
+    expect(layout.rows.length).toBe(system.bodies.length - 1);
+    expect(layout.nodes.get('Kerbin:sync')).toMatchObject({ row: 0, sub: true });
     expect(layout.rows[0]!.body.id).toBe('Kerbin');
   });
 
@@ -128,21 +128,29 @@ describe('layout', () => {
   it('highlights the same line for a trip and its return', () => {
     const out = findRoute(g, 'Kerbin:surface', 'Eeloo:surface', plain)!;
     const back = findRoute(g, 'Eeloo:surface', 'Kerbin:surface', plain)!;
-    const a = routeOverlay(g, layout, out.edges, plain);
-    const b = routeOverlay(g, layout, back.edges, plain);
-    expect(a.highlight.size).toBe(6);
-    expect(a.extra).toEqual([]);
-    expect([...b.highlight].sort()).toEqual([...a.highlight].sort());
-    expect(b.extra).toEqual([]);
+    const a = routeView(layout, out.nodes, out.edges, plain);
+    const b = routeView(layout, back.nodes, back.edges, plain);
+    expect(a.edges.size).toBe(6);
+    expect(a.labels.size).toBe(0);
+    expect([...b.edges].sort()).toEqual([...a.edges].sort());
     expect(back.total).toBeCloseTo(out.total, 6);
   });
 
-  it('draws undrawn transfers, like Moho to Eve, with their own numbers', () => {
+  it('runs Moho to Eve along the trunk, with Moho and Eve numbers on their rows', () => {
     const r = findRoute(g, 'Moho:low', 'Eve:low', plain)!;
-    const { highlight, extra } = routeOverlay(g, layout, r.edges, plain);
-    expect([...highlight].sort()).toEqual(['Eve:capture->Eve:low', 'Moho:capture->Moho:low']);
-    expect(extra.map((x) => x.edge.id)).toEqual(['Moho:capture->Eve:intercept:Moho', 'Eve:intercept:Moho->Eve:capture']);
-    expect(extra[0]!.to.id).toBe('Eve:intercept:Kerbin');
+    const v = routeView(layout, r.nodes, r.edges, plain);
+    const eject = r.edges.find((e) => e.to === 'Eve:intercept:Moho')!;
+    const capture = r.edges.find((e) => e.from === 'Eve:intercept:Moho')!;
+    expect(v.labels.get('Moho:intercept:Kerbin->Moho:capture')).toBeCloseTo(eject.dv);
+    expect(v.labels.get('Eve:intercept:Kerbin->Eve:capture')).toBeCloseTo(capture.dv);
+    expect(v.labels.get('Kerbin:capture->Eve:intercept:Kerbin')).toBeNull();
+    expect(v.shortcuts).toHaveLength(1);
+  });
+
+  it('captures straight into a synchronous orbit, without going through the capture node', () => {
+    const r = findRoute(g, 'Duna:low', 'Kerbin:sync', plain)!;
+    expect(r.nodes).not.toContain('Kerbin:capture');
+    expect(r.nodes.at(-2)).toBe('Kerbin:intercept:Duna');
   });
 
   it('describes return legs as the burns they are', () => {

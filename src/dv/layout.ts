@@ -14,6 +14,8 @@ export interface LayoutNode {
   id: string;
   col: number;
   row: number;
+  /** Drawn just below its row, between two columns (the synchronous orbit under the low orbit). */
+  sub?: boolean;
 }
 
 export interface LayoutRow {
@@ -22,8 +24,8 @@ export interface LayoutRow {
   nodes: LayoutNode[];
   /** Edge from another row into this row's first node; null for the root row. */
   attach: DvEdge | null;
-  /** A one-node row for the body's synchronous orbit, hanging off its low orbit. */
-  sync?: boolean;
+  /** The row has a synchronous orbit node under it and needs extra height. */
+  tall?: boolean;
 }
 
 export interface DvLayout {
@@ -97,62 +99,118 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
       if (i > 0) edges.push(g.edge(ids[i - 1]!, id)!);
     });
     if (attach) edges.push(attach);
+    // The synchronous orbit sits just under the row, between the low orbit (launches climb to it)
+    // and the capture node (arrivals capture straight into it), joined to both.
+    const lowIdx = ids.indexOf(nodeId(b, 'low'));
+    const capIdx = ids.indexOf(nodeId(b, 'capture'));
+    const sync = nodeId(b, 'sync');
+    if (lowIdx >= 0 && capIdx >= 0 && g.nodes.has(sync)) {
+      const n = { id: sync, col: col0 + (lowIdx + capIdx) / 2, row, sub: true };
+      nodes.set(sync, n);
+      edges.push(g.edge(ids[lowIdx]!, sync)!);
+      edges.push({ id: `${ids[capIdx]}->${sync}`, from: ids[capIdx]!, to: sync, dv: 0, link: true });
+      r.tall = true;
+    }
     // Rightmost branch points first, so the vertical connectors of earlier nodes never cross rows.
     for (let i = ids.length - 1; i >= 0; i--) {
       const kids = (childrenOf.get(ids[i]!) ?? []).sort((x, y) => x.orbit!.a - y.orbit!.a);
       for (const k of kids) place(k, col0 + i + 1);
-      if (ids[i] === nodeId(b, 'low') && g.nodes.has(nodeId(b, 'sync'))) placeSync(b, col0 + i + 1);
     }
   };
-  const placeSync = (b: Body, col: number) => {
-    const id = nodeId(b, 'sync');
-    const attach = g.edge(nodeId(b, 'low'), id)!;
-    const n = { id, col, row: rows.length };
-    rows.push({ body: b, row: n.row, nodes: [n], attach, sync: true });
-    nodes.set(id, n);
-    cols = Math.max(cols, col + 1);
-    edges.push(attach);
-  };
+
   if (chains.has(home)) place(home, 0);
   return { rows, nodes, edges, cols };
 }
 
-export interface RouteOverlay {
-  /** Drawn edges the route follows at the drawn cost. */
-  highlight: Set<string>;
-  /** Legs the map doesn't draw, or draws with another origin's cost: drawn on top, with the route's value. */
-  extra: { edge: DvEdge; from: LayoutNode; to: LayoutNode }[];
+export interface RouteView {
+  /** Drawn edges the route runs along. */
+  edges: Set<string>;
+  /** The route's own cost on an edge, where it differs from what the map shows; null for a coast. */
+  labels: Map<string, number | null>;
+  /**
+   * Pairs of connectors that hang off the same node the route doesn't visit (Moho → Eve both hang
+   * off Kerbin's capture): the route runs along the trunk between them instead of up to the node.
+   */
+  shortcuts: { up: DvEdge; down: DvEdge }[];
 }
 
 /**
- * How to show a route on the map. The map only draws transfers from its root, so a route that
- * doesn't start there (rare, since the map is redrawn from the route's start) can use legs with
- * no line of their own. Hidden intercept nodes stand in for a drawn intercept
- * of the same body (the mirror of the same transfer first, e.g. Eeloo's intercept from Kerbin
- * for Kerbin's intercept from Eeloo). Where the drawn line between the stand-ins carries the
- * same cost, it is highlighted; otherwise the leg is drawn over it with its own number.
+ * How a route shows on the map. The map stays drawn from home; a route between two other bodies
+ * runs along the tree (Moho's row, the trunk, Eve's row), and only the transfer numbers change:
+ * the ejection goes on the departure body's row, the capture on the arrival body's row.
  */
-export function routeOverlay(g: DvGraph, layout: DvLayout, routeEdges: DvEdge[], o: DvOptions): RouteOverlay {
-  const shown = (id: string): LayoutNode | undefined => {
-    const direct = layout.nodes.get(id);
-    if (direct) return direct;
-    const n = g.node(id);
-    if (n.kind !== 'intercept') return undefined;
-    const mirror = layout.nodes.get(nodeId(n.from!, 'intercept', n.body));
-    if (mirror) return mirror;
-    for (const [lid, ln] of layout.nodes) if (lid.startsWith(`${n.body.id}:intercept:`)) return ln;
-    return undefined;
-  };
-  const drawn = new Map(layout.edges.map((e) => [`${e.from}|${e.to}`, e]));
-  const highlight = new Set<string>();
-  const extra: RouteOverlay['extra'] = [];
-  for (const e of routeEdges) {
-    const a = shown(e.from);
-    const b = shown(e.to);
-    if (!a || !b || a === b) continue;
-    const same = drawn.get(`${a.id}|${b.id}`) ?? drawn.get(`${b.id}|${a.id}`);
-    if (same && Math.abs(edgeCost(same, o) - edgeCost(e, o)) < 0.5) highlight.add(same.id);
-    else extra.push({ edge: e, from: a, to: b });
+export function routeView(layout: DvLayout, routeNodes: string[], routeEdges: DvEdge[], o: DvOptions): RouteView {
+  const view: RouteView = { edges: new Set(), labels: new Map(), shortcuts: [] };
+  const start = routeNodes[0];
+  const end = routeNodes[routeNodes.length - 1];
+  if (!start || !end || !layout.nodes.has(start) || !layout.nodes.has(end)) return view;
+
+  // The tree path between the two drawn ends.
+  const adj = new Map<string, DvEdge[]>();
+  for (const e of layout.edges) {
+    adj.set(e.from, [...(adj.get(e.from) ?? []), e]);
+    adj.set(e.to, [...(adj.get(e.to) ?? []), e]);
   }
-  return { highlight, extra };
+  const back = new Map<string, DvEdge>();
+  const seen = new Set([start]);
+  const queue = [start];
+  while (queue.length) {
+    const u = queue.shift()!;
+    for (const e of adj.get(u) ?? []) {
+      const v = e.from === u ? e.to : e.from;
+      if (seen.has(v)) continue;
+      seen.add(v);
+      back.set(v, e);
+      queue.push(v);
+    }
+  }
+  const path: { edge: DvEdge; from: string; to: string }[] = [];
+  for (let v = end; v !== start; ) {
+    const e = back.get(v);
+    if (!e) return view;
+    const u = e.from === v ? e.to : e.from;
+    path.unshift({ edge: e, from: u, to: v });
+    v = u;
+  }
+  for (const p of path) view.edges.add(p.edge.id);
+  const at = (node: string) => path.findIndex((p) => p.from === node);
+
+  // Split the route into stretches between nodes the map draws, and put each stretch's legs on
+  // the tree edges it spans: first leg on the first edge, last leg on the last, coasts between.
+  let i = 0;
+  while (i < routeEdges.length) {
+    const legs = [routeEdges[i]!];
+    while (!layout.nodes.has(legs[legs.length - 1]!.to) && i + legs.length < routeEdges.length) legs.push(routeEdges[i + legs.length]!);
+    i += legs.length;
+    const a = at(legs[0]!.from);
+    const b = path.findIndex((p) => p.to === legs[legs.length - 1]!.to);
+    if (a < 0 || b < a) continue;
+    const span = path.slice(a, b + 1);
+    const put = (edge: DvEdge, value: number | null) => {
+      if (value === null || Math.abs(edgeCost(edge, o) - value) >= 0.5) view.labels.set(edge.id, value);
+    };
+    if (span.length === 1 && legs.length === 1) {
+      put(span[0]!.edge, edgeCost(legs[0]!, o));
+      continue;
+    }
+    const first = legs[0]!;
+    const last = legs.length > 1 ? legs[legs.length - 1]! : null;
+    span.forEach((p, k) => {
+      if (k === 0 && (last || span.length === 1)) put(p.edge, edgeCost(first, o));
+      else if (k === span.length - 1) put(p.edge, edgeCost(last ?? first, o) + (last ? legs.slice(1, -1).reduce((t, e) => t + edgeCost(e, o), 0) : 0));
+      else put(p.edge, null);
+    });
+  }
+
+  // Connector pairs around a node the route never visits.
+  const visited = new Set(routeNodes);
+  for (let k = 0; k + 1 < path.length; k++) {
+    const up = path[k]!;
+    const down = path[k + 1]!;
+    const isConnector = (e: DvEdge) => layout.rows.some((r) => r.attach?.id === e.id);
+    if (up.to === down.from && !visited.has(up.to) && isConnector(up.edge) && isConnector(down.edge)) {
+      view.shortcuts.push({ up: up.edge, down: down.edge });
+    }
+  }
+  return view;
 }

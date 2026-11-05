@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMapStore } from '../state/store.ts';
-import { ascentCost, hasSurface, type AscentSource } from './physics.ts';
+import { ascentCost, hasSurface, syncOrbitRadius, type AscentSource } from './physics.ts';
 import {
   DvGraph,
   edgeCost,
@@ -12,7 +12,7 @@ import {
   type DvNode,
   type DvOptions,
 } from './graph.ts';
-import { layoutDvMap, routeOverlay } from './layout.ts';
+import { layoutDvMap, routeView, type LayoutNode } from './layout.ts';
 import { useDvStore } from './store.ts';
 
 const COL = 106;
@@ -20,9 +20,10 @@ const ROW = 52;
 const PAD_X = 28;
 const PAD_Y = 34;
 const NAME_W = 190;
+/** How far below its row a synchronous orbit node sits. */
+const SUB_DY = 40;
 
 const x = (col: number) => PAD_X + col * COL;
-const y = (row: number) => PAD_Y + row * ROW;
 const fmt = (v: number) => Math.round(v).toLocaleString('en-US');
 
 const SOURCE_LABEL: Record<AscentSource, string> = {
@@ -50,78 +51,116 @@ export function DeltaVView() {
   const { graph } = useDvGraph();
   const options = useOptions();
   const from = useDvStore((s) => s.from);
-  // The map is drawn from the route's start body, so every leg has its own line and its own cost.
-  const root = from && graph.nodes.has(from) ? graph.node(from).body : graph.system.home;
-  const layout = useMemo(() => layoutDvMap(graph, root), [graph, root]);
-  const scroller = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    scroller.current?.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
-  }, [root]);
   const to = useDvStore((s) => s.to);
   const pick = useDvStore((s) => s.pick);
   const clear = useDvStore((s) => s.clear);
+  const layout = useMemo(() => layoutDvMap(graph), [graph]);
   const route = useMemo(
     () => (from && to && graph.nodes.has(from) && graph.nodes.has(to) ? findRoute(graph, from, to, options) : null),
     [graph, from, to, options],
   );
-  const overlay = useMemo(
-    () => (route ? routeOverlay(graph, layout, route.edges, options) : { highlight: new Set<string>(), extra: [] }),
+  const view = useMemo(
+    () => (route ? routeView(layout, route.nodes, route.edges, options) : null),
     [graph, layout, route, options],
   );
-  const onRoute = overlay.highlight;
-  // From the route's start (else the home surface) to each body's surface, or low orbit for gas giants.
-  const landingFrom =
-    from && graph.nodes.has(from)
-      ? from
-      : graph.nodes.has(nodeId(root, 'surface'))
-        ? nodeId(root, 'surface')
-        : nodeId(root, 'low');
+
+  // Row positions: rows with a synchronous orbit under them are taller.
+  const rowY = useMemo(() => {
+    const out: number[] = [];
+    let acc = PAD_Y;
+    for (const r of layout.rows) {
+      out.push(acc);
+      acc += ROW + (r.tall ? SUB_DY : 0);
+    }
+    out.push(acc);
+    return out;
+  }, [layout]);
+  const pos = (n: LayoutNode) => ({ x: x(n.col), y: rowY[n.row]! + (n.sub ? SUB_DY : 0) });
+
+  // From the home surface to each body's surface (or low orbit for gas giants).
   const landing = useMemo(() => {
-    const home = graph.node(landingFrom).body;
-    const start = landingFrom;
+    const home = graph.system.home;
+    const start = graph.nodes.has(nodeId(home, 'surface')) ? nodeId(home, 'surface') : nodeId(home, 'low');
     const out = new Map<string, { total: number; worst: number; orbitOnly: boolean }>();
     for (const r of layout.rows) {
       if (r.body === home) continue;
       const surf = nodeId(r.body, 'surface');
       const orbitOnly = !graph.nodes.has(surf);
       const target = orbitOnly ? nodeId(r.body, 'low') : surf;
-      const plain = findRoute(graph, start, target, {
-        ...options,
-        planeChanges: false,
-      });
-      const worst = findRoute(graph, start, target, {
-        ...options,
-        planeChanges: true,
-      });
-      if (plain && worst)
-        out.set(r.body.id, {
-          total: plain.total,
-          worst: worst.total,
-          orbitOnly,
-        });
+      const plain = findRoute(graph, start, target, { ...options, planeChanges: false });
+      const worst = findRoute(graph, start, target, { ...options, planeChanges: true });
+      if (plain && worst) out.set(r.body.id, { total: plain.total, worst: worst.total, orbitOnly });
     }
     return out;
-  }, [graph, layout, options, landingFrom]);
-  const width = x(layout.cols - 1) + NAME_W + PAD_X;
-  const height = y(layout.rows.length - 1) + PAD_Y;
+  }, [graph, layout, options]);
 
-  const edgeLabel = (e: DvEdge, lx: number, ly: number) => {
+  const width = x(layout.cols - 1) + NAME_W + PAD_X;
+  const height = rowY[layout.rows.length - 1]! + PAD_Y + (layout.rows.at(-1)?.tall ? SUB_DY : 0);
+  const shortcutEdges = new Set(view?.shortcuts.flatMap((sc) => [sc.up.id, sc.down.id]));
+
+  const geometry = (e: DvEdge) => {
+    const a = pos(layout.nodes.get(e.from)!);
+    const b = pos(layout.nodes.get(e.to)!);
+    const an = layout.nodes.get(e.from)!;
+    const bn = layout.nodes.get(e.to)!;
+    // The synchronous orbit's two short legs: label on the outer side of each.
+    if (bn.sub || an.sub) {
+      const top = bn.sub ? a : b;
+      const sub = bn.sub ? b : a;
+      const side = top.x < sub.x ? -1 : 1;
+      // Beside the sync node, on the side of the node this leg comes from.
+      return { d: `M${a.x},${a.y} L${b.x},${b.y}`, lx: sub.x + side * 10, ly: sub.y + 11, anchor: (side < 0 ? 'end' : 'start') as 'end' | 'start', a, b };
+    }
+    if (an.row === bn.row) return { d: `M${a.x},${a.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y, anchor: undefined, a, b };
+    return { d: `M${a.x},${a.y} V${b.y} H${b.x}`, lx: (a.x + b.x) / 2, ly: b.y, anchor: undefined, a, b };
+  };
+
+  // "Sync 2,863 km · 1,099": the climb from low orbit, or this route's cost into the orbit.
+  const syncLabel = (node: DvNode) => {
+    const km = Math.round(((syncOrbitRadius(node.body) ?? 0) - node.body.radius) / 1000).toLocaleString('en-US');
+    const up = layout.edges.find((e) => e.to === node.id && !e.link)!;
+    const legs = layout.edges.filter((e) => e.to === node.id || e.from === node.id);
+    const routed = legs.find((e) => view?.labels.has(e.id));
+    const value = routed ? view!.labels.get(routed.id) : edgeCost(up, options);
+    return (
+      <text y={17}>
+        Sync {km} km ·{' '}
+        <tspan className={routed ? 'route-value' : 'sync-cost'}>{value === null || value === undefined ? '—' : fmt(value)}</tspan>
+        <title>
+          {routed
+            ? "This route's cost into or out of the synchronous orbit"
+            : `From low orbit: ${up.burns ? `${fmt(up.burns[0])} + ${fmt(up.burns[1])}` : fmt(up.dv)} m/s`}
+        </title>
+      </text>
+    );
+  };
+
+  const edgeLabel = (e: DvEdge) => {
+    const { lx, ly } = geometry(e);
     const aero = options.aerobrake && e.aeroDv !== undefined;
-    const value = edgeCost(e, options);
+    const override = view?.labels.get(e.id);
+    const hasOverride = view?.labels.has(e.id) ?? false;
+    const anchor = geometry(e).anchor;
+    // The synchronous orbit's legs are labelled under the sync node instead (see syncLabel).
+    if (layout.nodes.get(e.to)!.sub || layout.nodes.get(e.from)!.sub) return null;
     return (
       <g key={`l-${e.id}`} className="dv-edge-label">
-        <text x={lx} y={ly - 7} className={e.aeroDv !== undefined ? 'aero' : undefined}>
-          {fmt(value)}
-          {e.aeroDv !== undefined && <tspan className="aero-mark">{aero ? ' ✓A' : ' A'}</tspan>}
+        <text x={lx} y={ly - 7} textAnchor={anchor} className={hasOverride ? 'route-value' : undefined}>
+          {hasOverride ? (override === null ? '—' : fmt(override!)) : fmt(edgeCost(e, options))}
+          {!hasOverride && e.aeroDv !== undefined && <tspan className="aero-mark">{aero ? ' ✓A' : ' A'}</tspan>}
           <title>
-            {e.aeroDv !== undefined
-              ? `Aerobraking possible: ${fmt(e.dv)} m/s powered, ${fmt(e.aeroDv)} m/s with aerobraking`
-              : `${fmt(e.dv)} m/s`}
-            {e.source ? ` (${SOURCE_LABEL[e.source]})` : ''}
-            {e.burns ? ` (burns: ${fmt(e.burns[0])} + ${fmt(e.burns[1])})` : ''}
+            {hasOverride
+              ? override === null
+                ? 'Coasting: no burn here on this route'
+                : 'This route\'s cost for this leg'
+              : e.aeroDv !== undefined
+                ? `Aerobraking possible: ${fmt(e.dv)} m/s powered, ${fmt(e.aeroDv)} m/s with aerobraking`
+                : `${fmt(e.dv)} m/s`}
+            {!hasOverride && e.source ? ` (${SOURCE_LABEL[e.source]})` : ''}
+            {!hasOverride && e.burns ? ` (burns: ${fmt(e.burns[0])} + ${fmt(e.burns[1])})` : ''}
           </title>
         </text>
-        {e.plane !== undefined && e.plane >= 5 && !options.planeChanges && (
+        {!hasOverride && e.plane !== undefined && e.plane >= 5 && !options.planeChanges && (
           <text x={lx} y={ly + 13} className="plane">
             +{fmt(e.plane)} plane
           </text>
@@ -132,7 +171,6 @@ export function DeltaVView() {
 
   return (
     <div
-      ref={scroller}
       className="dv-view"
       // A click anywhere but on a node drops the route.
       onClick={(ev) => {
@@ -140,67 +178,51 @@ export function DeltaVView() {
       }}
     >
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Delta-v map">
-        {/* Connectors between rows, then in-row segments. */}
         {layout.edges.map((e) => {
-          const a = layout.nodes.get(e.from)!;
-          const b = layout.nodes.get(e.to)!;
           // Colour by the row a line leaves from, so shared vertical trunks keep one colour.
           const color = graph.node(e.from).body.data.style.color;
-          const d =
-            a.row === b.row
-              ? `M${x(a.col)},${y(a.row)} H${x(b.col)}`
-              : `M${x(a.col)},${y(a.row)} V${y(b.row)} H${x(b.col)}`;
+          const on = view?.edges.has(e.id) && !shortcutEdges.has(e.id);
           return (
             <path
               key={e.id}
-              d={d}
-              className={`dv-line${onRoute.has(e.id) ? ' on-route' : ''}`}
-              style={{ stroke: onRoute.has(e.id) ? undefined : color }}
+              d={geometry(e).d}
+              className={`dv-line${on ? ' on-route' : ''}`}
+              style={{ stroke: on ? undefined : color }}
             />
           );
         })}
-        {layout.edges.map((e) => {
-          const a = layout.nodes.get(e.from)!;
-          const b = layout.nodes.get(e.to)!;
-          return edgeLabel(e, (x(a.col) + x(b.col)) / 2, y(b.row));
-        })}
-        {/* Route legs the map doesn't draw (e.g. Moho → Eve), with the route's own numbers. */}
-        {overlay.extra.map(({ edge, from: a, to: b }) => {
-          const ax = x(a.col),
-            ay = y(a.row),
-            bx = x(b.col),
-            by = y(b.row);
-          const sameRow = ay === by;
-          const d = sameRow ? `M${ax},${ay} H${bx}` : `M${ax},${ay} C${ax + 60},${ay} ${bx - 60},${by} ${bx},${by}`;
-          const lx = (ax + bx) / 2 + (sameRow ? 0 : 14);
-          const ly = sameRow ? ay + 17 : (ay + by) / 2 + 4;
+        {/* Between two rows that hang off the same node: along the trunk, not up to the node. */}
+        {view?.shortcuts.map(({ up, down }) => {
+          const a = geometry(up);
+          const b = geometry(down);
           return (
-            <g key={`x-${edge.id}`} className="dv-extra">
-              <path d={d} />
-              <text x={lx} y={ly}>
-                {fmt(edgeCost(edge, options))}
-                <title>{legLabel(graph, edge, options)}</title>
-              </text>
-            </g>
+            <path
+              key={`s-${up.id}`}
+              d={`M${a.b.x},${a.b.y} H${a.a.x} V${b.b.y} H${b.b.x}`}
+              className="dv-line on-route"
+            />
           );
         })}
+        {layout.edges.map((e) => edgeLabel(e))}
         {layout.rows.map((r) => {
           const last = r.nodes[r.nodes.length - 1]!;
-          const land = r.sync ? undefined : landing.get(r.body.id);
+          const p = pos(last);
+          const land = landing.get(r.body.id);
+          const nx = p.x + 24 + r.body.name.length * 8;
           return (
-            <g key={`n-${r.body.id}${r.sync ? '-sync' : ''}`}>
-              <text x={x(last.col) + 16} y={y(r.row) + 4} className={r.sync ? 'dv-sync-name' : 'dv-body-name'}>
-                {r.sync ? nodeLabel(graph.node(last.id)) : r.body.name}
+            <g key={`n-${r.body.id}`}>
+              <text x={p.x + 16} y={p.y + 4} className="dv-body-name">
+                {r.body.name}
               </text>
               {land && (
-                <text x={x(last.col) + 24 + r.body.name.length * 8} y={y(r.row) + 1} className="dv-land">
+                <text x={nx} y={p.y + 1} className="dv-land">
                   {fmt(land.total)}
                   {land.orbitOnly ? ' to orbit' : ''}
-                  <title>{`From ${nodeLabel(graph.node(landingFrom))} to ${r.body.name}'s ${land.orbitOnly ? 'low orbit' : 'surface'}, m/s`}</title>
+                  <title>{`From ${graph.system.home.name}'s surface to ${r.body.name}'s ${land.orbitOnly ? 'low orbit' : 'surface'}, m/s`}</title>
                 </text>
               )}
               {land && land.worst - land.total >= 5 && (
-                <text x={x(last.col) + 24 + r.body.name.length * 8} y={y(r.row) + 14} className="dv-land worst">
+                <text x={nx} y={p.y + 14} className="dv-land worst">
                   {fmt(land.worst)}
                   <title>Worst case, with the plane changes included, m/s</title>
                 </text>
@@ -210,12 +232,13 @@ export function DeltaVView() {
         })}
         {[...layout.nodes.values()].map((n) => {
           const node = graph.node(n.id);
+          const p = pos(n);
           const state = n.id === from ? ' from' : n.id === to ? ' to' : route?.nodes.includes(n.id) ? ' via' : '';
           return (
             <g
               key={n.id}
-              className={`dv-node${state}`}
-              transform={`translate(${x(n.col)},${y(n.row)})`}
+              className={`dv-node${state}${n.sub ? ' sub' : ''}`}
+              transform={`translate(${p.x},${p.y})`}
               onClick={() => pick(n.id)}
               role="button"
               tabIndex={0}
@@ -223,8 +246,12 @@ export function DeltaVView() {
               onKeyDown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && pick(n.id)}
             >
               <circle r={13} className="hit" />
-              <circle r={node.kind === 'surface' ? 7 : 5.5} style={{ fill: node.body.data.style.color }} />
-              <text y={20}>{shortLabel(node)}</text>
+              <circle r={node.kind === 'surface' ? 7 : n.sub ? 4.5 : 5.5} style={{ fill: node.body.data.style.color }} />
+              {n.sub ? (
+                syncLabel(node)
+              ) : (
+                <text y={20}>{shortLabel(node)}</text>
+              )}
               <title>{nodeLabel(node)}</title>
             </g>
           );
@@ -272,9 +299,9 @@ export function DvPanel() {
         <span className="chevron">{open ? '▾' : '▸'}</span>
         <span className="kind">
           {!from
-            ? `Map drawn from ${graph.system.home.name}. Click a node to start a route`
+            ? 'Click a node to start a route'
             : !to
-              ? `Map redrawn from ${graph.node(from).body.name}: pick a destination`
+              ? `From ${nodeLabel(graph.node(from))}: pick a destination`
               : `${nodeLabel(graph.node(from))} → ${nodeLabel(graph.node(to))}`}
         </span>
       </header>

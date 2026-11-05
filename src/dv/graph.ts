@@ -51,6 +51,8 @@ export interface DvEdge {
   aeroDv?: number;
   /** Plane change covering the full inclination gap, burned at the transfer's slowest point, m/s. The real cost at AN/DN depends on the date; the transfer timeline computes it per window. */
   plane?: number;
+  /** Drawn on the map only, to show a path the graph covers with other edges; carries no cost of its own. */
+  link?: boolean;
   /** For two-burn transfers (low orbit ↔ synchronous orbit): the burns that make up dv. */
   burns?: [number, number];
   /** Where the number comes from, for ascent and landing edges. */
@@ -68,6 +70,13 @@ export const nodeId = (body: Body, kind: NodeKind, from?: Body) =>
 export function edgeCost(e: DvEdge, o: DvOptions): number {
   const base = o.aerobrake && e.aeroDv !== undefined ? e.aeroDv : e.dv;
   return base + (o.planeChanges && e.plane ? e.plane : 0);
+}
+
+/** One burn between a circular synchronous orbit and a hyperbola with excess speed vInf; null if there's no such orbit. */
+function syncBurn(b: Body, vInf: number): number | null {
+  const r = syncOrbitRadius(b);
+  if (!r) return null;
+  return Math.sqrt(vInf * vInf + escapeSpeed(b.mu, r) ** 2) - circularSpeed(b.mu, r);
 }
 
 export class DvGraph {
@@ -136,11 +145,8 @@ export class DvGraph {
       const up = burns[0] + burns[1];
       this.addEdge({ from: low, to: sync, dv: up, burns });
       this.addEdge({ from: sync, to: low, dv: up, burns: [burns[1], burns[0]] });
-      const out = escapeSpeed(b.mu, rSync) - circularSpeed(b.mu, rSync);
-      this.addEdge({ from: sync, to: cap, dv: out });
-      // Down from a parabolic orbit: lower the apoapsis at low-orbit periapsis, then circularize.
-      const down = escapeSpeed(b.mu, r) - v1 + burns[1];
-      this.addEdge({ from: cap, to: sync, dv: down, burns: [escapeSpeed(b.mu, r) - v1, burns[1]] });
+      // Transfers leave from and arrive at the synchronous orbit directly (see syncBurn), never
+      // through the capture node, whose periapsis is down at the low orbit.
     }
     if (hasSurface(b)) {
       const surf = nodeId(b, 'surface');
@@ -177,6 +183,7 @@ export class DvGraph {
     // Inbound: moon → parent. The arrival ellipse has its periapsis at the parent's low orbit.
     const pInt = this.addNode(p, 'intercept', m);
     this.addEdge({ from: nodeId(m, 'capture'), to: pInt, dv: excessBurn(m.mu, lowOrbitRadius(m), vInf), plane });
+    this.addSyncDeparture(m, pInt, vInf, plane);
     this.addEdge({ from: pInt, to: pLow, dv: vp - vLow, aeroDv: hasAtmosphere(p) ? 0 : undefined });
     this.addEdge({ from: pInt, to: pCap, dv: vEsc - vp });
   }
@@ -191,6 +198,7 @@ export class DvGraph {
     const plane = planeChange(Math.min(v1, v2), angleBetween(x.orbit!.normal, y.orbit!.normal));
     const yInt = this.addNode(y, 'intercept', x);
     this.addEdge({ from: nodeId(x, 'capture'), to: yInt, dv: excessBurn(x.mu, lowOrbitRadius(x), vInfX), plane });
+    this.addSyncDeparture(x, yInt, vInfX, plane);
     this.addCapture(yInt, y, vInfY);
   }
 
@@ -201,6 +209,15 @@ export class DvGraph {
       dv: excessBurn(body.mu, lowOrbitRadius(body), vInf),
       aeroDv: hasAtmosphere(body) ? 0 : undefined,
     });
+    // Arrive with the periapsis at the synchronous altitude and capture straight into it.
+    const burn = syncBurn(body, vInf);
+    if (burn !== null) this.addEdge({ from: intercept, to: nodeId(body, 'sync'), dv: burn });
+  }
+
+  /** Eject straight from the synchronous orbit (one burn there, Oberth at that altitude). */
+  private addSyncDeparture(body: Body, intercept: string, vInf: number, plane: number) {
+    const burn = syncBurn(body, vInf);
+    if (burn !== null) this.addEdge({ from: nodeId(body, 'sync'), to: intercept, dv: burn, plane });
   }
 }
 
@@ -294,9 +311,10 @@ export function legLabel(g: DvGraph, e: DvEdge, o: DvOptions): string {
   const B = b.body.name;
   if (a.kind === 'surface') return `Launch to ${B} low orbit`;
   if (b.kind === 'surface') return aero ? `Deorbit and aerobrake to ${B} surface` : `Land on ${B}`;
+  if (a.kind === 'intercept' && b.kind === 'sync') return `Capture into ${B} synchronous orbit`;
   if (b.kind === 'sync') return `Raise to ${B} synchronous orbit (two burns)`;
   if (a.kind === 'sync' && b.kind === 'low') return `Lower to ${B} low orbit (two burns)`;
-  if (a.kind === 'sync') return `Escape burn at ${A}`;
+  if (a.kind === 'sync') return `Eject from ${A} synchronous orbit toward ${B}`;
   if (a.kind === 'low' && b.kind === 'capture') return `Escape burn at ${A}`;
   if (a.kind === 'capture' && b.kind === 'low') return aero ? `Aerobrake into ${B} low orbit` : `Circularize at ${B} low orbit`;
   if (b.kind === 'intercept') {
