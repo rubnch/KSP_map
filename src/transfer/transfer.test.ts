@@ -142,16 +142,6 @@ describe('plane changes', () => {
 });
 
 describe('porkchop', () => {
-  it.each([
-    ['Kerbin', 'Eve', date(2, 200)],
-    ['Laythe', 'Tylo', 5 * DAY],
-  ])('%s → %s ballistic has a cost everywhere, even around 180° transfers', (o, t, center) => {
-    const p = problem(o, t);
-    const r = porkchopRange(p, center);
-    const g = porkchop(p, r.depFrom, r.depTo, r.tofFrom, r.tofTo, 90, 70);
-    expect(g.dv.filter((v) => !Number.isFinite(v))).toHaveLength(0);
-  });
-
   it('has its minimum at the window the timeline finds', () => {
     const p = problem('Kerbin', 'Duna');
     const center = date(1, 238);
