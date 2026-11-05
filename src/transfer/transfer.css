@@ -1,4 +1,4 @@
-/* Transfer window timeline and porkchop plot. Kept apart from styles.css. */
+/* Transfer planner page, its launcher on the map, timeline and porkchop plot. Kept apart from styles.css. */
 .time-stack {
   grid-area: time;
   align-self: end;
@@ -24,39 +24,6 @@
   color: var(--text);
 }
 
-.transfer-timeline {
-  position: relative;
-  width: 100%;
-  max-width: 980px;
-  padding: 8px 12px 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
-}
-.tt-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 14px;
-}
-.tt-header strong {
-  font-size: 13px;
-}
-.tt-header select {
-  font: inherit;
-  color: inherit;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--panel-border);
-  border-radius: 4px;
-  padding: 1px 4px;
-}
-.tt-header label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-dim);
-}
 .tt-alt {
   width: 58px;
   font: inherit;
@@ -92,12 +59,6 @@
   color: #05070d;
   font-weight: 600;
 }
-.tt-close {
-  margin-left: auto;
-  color: var(--text-dim);
-  padding: 0 4px;
-}
-
 .tt-body {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -108,14 +69,24 @@
   flex-direction: column;
 }
 .tt-axis-spacer {
-  height: 16px;
+  height: 18px;
 }
 .tt-label {
-  height: 22px;
+  height: 30px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding: 0 8px 0 4px;
+  border-radius: 4px;
   white-space: nowrap;
+  text-align: left;
+}
+.tt-label:hover {
+  background: rgba(127, 178, 255, 0.12);
+}
+.tt-label.on {
+  background: rgba(127, 178, 255, 0.24);
+  font-weight: 600;
 }
 .tt-track {
   position: relative;
@@ -126,7 +97,7 @@
 }
 .tt-axis {
   position: relative;
-  height: 16px;
+  height: 18px;
   border-bottom: 1px solid var(--panel-border);
 }
 .tt-year {
@@ -139,7 +110,7 @@
 }
 .tt-gridline {
   position: absolute;
-  top: 16px;
+  top: 18px;
   bottom: 0;
   width: 1px;
   background: rgba(120, 150, 200, 0.12);
@@ -147,21 +118,21 @@
 }
 .tt-row {
   position: relative;
-  height: 22px;
+  height: 30px;
   border-bottom: 1px solid rgba(120, 150, 200, 0.08);
 }
 .tt-status {
   position: absolute;
   left: 4px;
-  top: 4px;
+  top: 8px;
   color: var(--text-dim);
   font-size: 11px;
   pointer-events: none;
 }
 .tt-window {
   position: absolute;
-  top: 4px;
-  height: 14px;
+  top: 7px;
+  height: 16px;
   padding: 0;
   border-radius: 4px;
   background: rgba(127, 178, 255, 0.22);
@@ -180,7 +151,7 @@
 }
 .tt-diamond {
   position: absolute;
-  top: 3px;
+  top: 4px;
   width: 8px;
   height: 8px;
   margin-left: -4px;
@@ -204,19 +175,6 @@
 .tt-window.cheapest .tt-dv {
   color: var(--text);
 }
-.tt-porkchop {
-  margin-left: auto;
-  width: 18px;
-  height: 18px;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--text-dim);
-  border-radius: 4px;
-}
-.tt-porkchop:hover {
-  color: var(--text);
-  background: rgba(127, 178, 255, 0.24);
-}
 .tt-cursor {
   position: absolute;
   top: 0;
@@ -228,7 +186,7 @@
 }
 .tt-tooltip {
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   transform: translateX(-50%);
   max-width: 360px;
   padding: 4px 8px;
@@ -300,20 +258,6 @@
   color: var(--accent);
 }
 
-/* Porkchop plot: docked bottom right, beside the timeline, so the middle of the map stays clear. */
-.porkchop {
-  position: fixed;
-  right: 16px;
-  bottom: 12px;
-  width: min(320px, calc(100vw - 32px));
-  padding: 8px 10px 10px;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  backdrop-filter: blur(6px);
-  pointer-events: auto;
-  z-index: 4;
-}
 .porkchop header {
   display: flex;
   flex-wrap: wrap;
@@ -442,17 +386,181 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 720px) {
-  /* Phones: no room beside the timeline, so the plot goes over the top of the screen. */
-  .porkchop {
-    right: 16px;
-    top: 12px;
-    bottom: auto;
+/* Launcher on the map */
+.tp-onmap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.tp-onmap button {
+  padding: 2px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+}
+.tp-onmap button:hover,
+.tp-header button:hover {
+  background: rgba(127, 178, 255, 0.12);
+}
+.tp-onmap button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #05070d;
+  font-weight: 600;
+}
+
+/* The planner page, over the map */
+.tp-page {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow: auto;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+}
+.tp-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  padding: 10px 16px;
+  background: rgba(14, 20, 32, 0.96);
+  border-bottom: 1px solid var(--panel-border);
+}
+.tp-title {
+  font-size: 16px;
+}
+.tp-header label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+}
+.tp-header select {
+  font: inherit;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.tp-back {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+.tp-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  grid-template-areas:
+    'timeline side'
+    'porkchop side';
+  align-items: start;
+  gap: 16px;
+  padding: 16px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+.tp-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+.tp-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+.tp-card-head h2,
+.porkchop header strong {
+  margin: 0 auto 0 0;
+  font-size: 14px;
+}
+.tp-timeline {
+  grid-area: timeline;
+}
+.tp-timeline .tt-note {
+  margin-top: 8px;
+}
+.tp-porkchop {
+  grid-area: porkchop;
+  justify-self: start;
+  width: min(100%, 600px);
+}
+.tp-porkchop .porkchop {
+  max-width: 560px;
+}
+.tp-side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  top: 64px;
+}
+.tp-diagram {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.tp-diagram .tp-body-label {
+  fill: var(--text);
+  font-size: 12px;
+  paint-order: stroke;
+  stroke: #05070d;
+  stroke-width: 3px;
+}
+.tp-phase path {
+  fill: rgba(255, 179, 92, 0.18);
+  stroke: rgba(255, 179, 92, 0.7);
+  stroke-width: 1;
+}
+.tp-phase text {
+  fill: #ffb35c;
+  font-size: 12px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+.tp-show {
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #05070d;
+  font-weight: 600;
+}
+.tp-hint {
+  margin: 0;
+  color: var(--text-dim);
+}
+.tp-side .tt-details {
+  border-top: 0;
+  padding-top: 0;
+}
+.tp-side .tt-details-grid {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 900px) {
+  .tp-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'timeline' 'side' 'porkchop';
+    padding: 12px;
+  }
+  .tp-side {
+    position: static;
   }
   .tt-dv {
-    display: none;
-  }
-  .tt-note {
     display: none;
   }
 }

@@ -10,7 +10,7 @@ export function TransferDetails({ origin }: { origin: Body }) {
   const system = useMapStore((s) => s.system);
   const setUt = useMapStore((s) => s.setUt);
   const cal = system.pack.calendar;
-  const { selected, mode, capture, initialAltitude, select, openPorkchop } = useTransferStore();
+  const { selected, mode, capture, initialAltitude, select } = useTransferStore();
   if (!selected) return null;
   const target = system.find(selected.targetId);
   if (!target) return null;
@@ -29,7 +29,6 @@ export function TransferDetails({ origin }: { origin: Body }) {
         <span className="dot" style={{ background: origin.data.style.color }} /> {origin.name} →{' '}
         <span className="dot" style={{ background: target.data.style.color }} /> {target.name}
         <strong className="tt-total">{ms(tr.dv)}</strong>
-        <button onClick={() => openPorkchop(target.id)}>Porkchop plot</button>
         <button onClick={() => select(null)} aria-label="Clear transfer">
           ✕
         </button>

@@ -4,6 +4,7 @@ import { defaultParkingAltitude, TransferProblem, type Transfer, type TransferMo
 
 /** UI state of the transfer timeline: which origin, what is selected, how transfers are flown. */
 interface TransferState {
+  /** The planner page is showing (over the map). */
   open: boolean;
   /** Origin body id; null = the pack's home body. */
   originId: string | null;
@@ -15,6 +16,7 @@ interface TransferState {
   /** Parking orbit altitude at the origin, metres; null = the body's default low orbit. */
   initialAltitude: number | null;
   selected: { targetId: string; transfer: Transfer } | null;
+  /** Target whose porkchop plot is shown; null = the selected transfer's, else the first. */
   porkchopTargetId: string | null;
   setOpen: (open: boolean) => void;
   setOrigin: (id: string) => void;
@@ -35,7 +37,7 @@ export const useTransferStore = create<TransferState>((set) => ({
   initialAltitude: null,
   selected: null,
   porkchopTargetId: null,
-  setOpen: (open) => set({ open, ...(open ? {} : { selected: null, porkchopTargetId: null }) }),
+  setOpen: (open) => set({ open }),
   setOrigin: (originId) => set({ originId, initialAltitude: null, selected: null, porkchopTargetId: null }),
   setSpanYears: (spanYears) => set({ spanYears }),
   setMode: (mode) => set({ mode, selected: null }),

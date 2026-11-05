@@ -20,7 +20,7 @@ export function PorkchopPanel({ origin, target }: { origin: Body; target: Body }
   const system = useMapStore((s) => s.system);
   const ut = useMapStore((s) => s.ut);
   const cal = system.pack.calendar;
-  const { mode, capture, initialAltitude, selected, select, openPorkchop } = useTransferStore();
+  const { mode, capture, initialAltitude, selected, select } = useTransferStore();
   const problem = useMemo(
     () => problemFor(origin, target, { mode, capture, initialAltitude }),
     [origin, target, mode, capture, initialAltitude],
@@ -31,6 +31,11 @@ export function PorkchopPanel({ origin, target }: { origin: Body; target: Body }
     selected?.targetId === target.id ? selected.transfer.departure : ut + Math.min(problem.synodicPeriod, 2 * origin.orbit!.period) / 2;
   const [range, setRange] = useState(() => porkchopRange(problem, center));
   useEffect(() => setRange(porkchopRange(problem, center)), [problem, target.id]);
+  // A window picked on the timeline that is off the plot: move the plot to it.
+  const selDep = selected?.targetId === target.id ? selected.transfer.departure : null;
+  useEffect(() => {
+    if (selDep !== null && (selDep < range.depFrom || selDep > range.depTo)) setRange(porkchopRange(problem, selDep));
+  }, [selDep]);
 
   const [grid, setGrid] = useState<PorkchopGrid | null>(null);
   useEffect(() => {
@@ -103,7 +108,7 @@ export function PorkchopPanel({ origin, target }: { origin: Body; target: Body }
   };
 
   return (
-    <div className="porkchop" role="dialog" aria-label={`Porkchop plot ${origin.name} to ${target.name}`}>
+    <div className="porkchop" aria-label={`Porkchop plot ${origin.name} to ${target.name}`}>
       <header>
         <strong>
           {origin.name} → {target.name}
@@ -118,9 +123,6 @@ export function PorkchopPanel({ origin, target }: { origin: Body; target: Body }
         </button>
         <button onClick={() => shift(0.5)} title="Later departures">
           ▶
-        </button>
-        <button onClick={() => openPorkchop(null)} aria-label="Close porkchop plot">
-          ✕
         </button>
       </header>
       <div className="pc-plot">

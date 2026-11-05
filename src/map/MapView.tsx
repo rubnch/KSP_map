@@ -8,6 +8,9 @@ import { SystemScene } from './SystemScene.tsx';
 import { LabelsOverlay } from './LabelsOverlay.tsx';
 import { TransferArc } from '../transfer/TransferArc.tsx';
 
+/** One-shot camera requests from outside the canvas, e.g. framing a transfer. Metres. */
+export const cameraRequest: { distance: number | null } = { distance: null };
+
 export function MapView() {
   return (
     <div className="map-view">
@@ -87,6 +90,10 @@ function CameraRig() {
   }, [gl]);
 
   useFrame((_, delta) => {
+    if (cameraRequest.distance !== null) {
+      targetDistance.current = Math.min(maxDistance, Math.max(minDistance, cameraRequest.distance * SCALE));
+      cameraRequest.distance = null;
+    }
     const target = targetDistance.current;
     if (target === null) return;
     const current = camera.position.length();
