@@ -57,7 +57,7 @@ export interface DvLayout {
 export const CAPTURE_GAP = 1.8;
 
 /** Extra height, in rows, of a row with a synchronous orbit under it. */
-export const SUB_ROWS = 1.1;
+export const SUB_ROWS = 1.4;
 
 const ORDER: NodeKind[] = ['intercept', 'capture', 'low', 'surface'];
 
@@ -164,8 +164,9 @@ export function layoutDvMap(g: DvGraph, root: Body = g.system.home): DvLayout {
       const gap = cols[lowIdx]! - capCol;
       const y = r.y - SUB_ROWS;
       put({ id: high, col: side * (capCol - 0.25 * Math.sign(gap)), y, sub: true });
-      put({ id: sync, col: side * (capCol + 0.32 * gap), y, sub: true });
-      put({ id: xfer, col: side * (capCol + 0.72 * gap), y, sub: true });
+      put({ id: sync, col: side * (capCol + 0.45 * gap), y, sub: true });
+      // Right above the low orbit, so the climb from it is a straight line up.
+      put({ id: xfer, col: side * (capCol + gap - 0.15 * Math.sign(gap)), y, sub: true });
       const before = shown[capIdx - 1];
       const intercept = before && g.node(before).kind === 'intercept' ? before : null;
       edges.push(

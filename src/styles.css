@@ -491,7 +491,7 @@ button {
 .dv-node .hit {
   fill: transparent;
 }
-.dv-node circle:not(.hit) {
+.dv-node :is(circle:not(.hit), rect) {
   stroke: var(--bg);
   stroke-width: 2;
 }
@@ -503,15 +503,15 @@ button {
   stroke: var(--bg);
   stroke-width: 3px;
 }
-.dv-node:hover circle:not(.hit),
-.dv-node:focus-visible circle:not(.hit) {
+.dv-node:hover :is(circle:not(.hit), rect),
+.dv-node:focus-visible :is(circle:not(.hit), rect) {
   stroke: var(--accent);
 }
-.dv-node.from circle:not(.hit) {
+.dv-node.from :is(circle:not(.hit), rect) {
   stroke: var(--route-start);
   stroke-width: 4;
 }
-.dv-node.to circle:not(.hit) {
+.dv-node.to :is(circle:not(.hit), rect) {
   stroke: var(--route-end);
   stroke-width: 4;
 }
