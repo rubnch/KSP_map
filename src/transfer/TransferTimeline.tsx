@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { formatDuration, formatUt, type Body } from '../core/index.ts';
 import { useMapStore } from '../state/store.ts';
 import { requestWindows } from './client.ts';
 import { PorkchopPanel } from './PorkchopPanel.tsx';
-import { originCandidates, settingsFor, targetsOf, useTransferStore } from './store.ts';
+import { originCandidates, settingsFor, targetsOf, useTransferStore, type TransferOptions } from './store.ts';
+import { defaultParkingAltitude } from './transfer.ts';
 import { TransferDetails } from './TransferDetails.tsx';
 import type { TransferWindow } from './windows.ts';
 import './transfer.css';
@@ -43,7 +45,8 @@ function TimelinePanel() {
   const page = (dir: 1 | -1) => setRangeStart((s) => Math.max(0, s + dir * Math.max(1, t.spanYears / 2) * year));
   const clockOutside = ut < rangeStart || ut > rangeEnd;
 
-  const windows = useWindows(origin, targets, rangeStart, rangeEnd, t.mode, t.capture);
+  const options: TransferOptions = { mode: t.mode, capture: t.capture, initialAltitude: t.initialAltitude };
+  const windows = useWindows(origin, targets, rangeStart, rangeEnd, options);
 
   return (
     <section className="panel transfer-timeline" aria-label="Transfer windows">
@@ -75,6 +78,7 @@ function TimelinePanel() {
             Ballistic
           </button>
         </div>
+        <AltitudeInput origin={origin} />
         <label title="Include the burn into a low circular orbit at the target. Off: flyby or aerobraking.">
           <input type="checkbox" checked={t.capture} onChange={(e) => t.setCapture(e.target.checked)} /> capture burn
         </label>
@@ -116,13 +120,14 @@ function TimelinePanel() {
       />
 
       {t.selected && <TransferDetails origin={origin} />}
-      {t.porkchopTargetId && system.find(t.porkchopTargetId) && (
-        <PorkchopPanel origin={origin} target={system.get(t.porkchopTargetId)} />
-      )}
+      {/* Portalled: the panel's backdrop-filter would otherwise pin the "fixed" plot inside the timeline. */}
+      {t.porkchopTargetId &&
+        system.find(t.porkchopTargetId) &&
+        createPortal(<PorkchopPanel origin={origin} target={system.get(t.porkchopTargetId)} />, document.body)}
       <p className="tt-note">
-        Δv from a {fmtKm(settingsFor(origin, origin, t.mode, t.capture).initialAltitude)} orbit around {origin.name}
-        {t.capture ? ', with capture into a low orbit at the target' : ', no capture burn'}. Bars span the dates within
-        10% of the best Δv. Drag along the timeline to move the clock.
+        Δv from a parking orbit {fmtKm(settingsFor(origin, origin, options).initialAltitude)} above {origin.name}
+        {t.capture ? ", with capture into the target's low orbit (as on the Δv map)" : ', no capture burn'}. Bars span
+        the dates within 10% of the best Δv. Drag along the timeline to move the clock.
       </p>
     </section>
   );
@@ -130,7 +135,8 @@ function TimelinePanel() {
 
 type WindowsByTarget = Record<string, TransferWindow[] | 'loading' | 'error'>;
 
-function useWindows(origin: Body, targets: Body[], from: number, to: number, mode: 'optimal' | 'ballistic', capture: boolean) {
+function useWindows(origin: Body, targets: Body[], from: number, to: number, options: TransferOptions) {
+  const { mode, capture, initialAltitude } = options;
   const pack = useMapStore((s) => s.system.pack);
   const [state, setState] = useState<WindowsByTarget>({});
   useEffect(() => {
@@ -139,7 +145,7 @@ function useWindows(origin: Body, targets: Body[], from: number, to: number, mod
     // Start a little before the range so a window that is open right now still shows.
     const start = Math.max(0, from - pack.calendar.yearLength / 2);
     for (const target of targets) {
-      requestWindows(pack, origin.id, target.id, settingsFor(origin, target, mode, capture), start, to).then(
+      requestWindows(pack, origin.id, target.id, settingsFor(origin, target, { mode, capture, initialAltitude }), start, to).then(
         (w) => alive && setState((s) => ({ ...s, [target.id]: w })),
         () => alive && setState((s) => ({ ...s, [target.id]: 'error' })),
       );
@@ -147,7 +153,7 @@ function useWindows(origin: Body, targets: Body[], from: number, to: number, mod
     return () => {
       alive = false;
     };
-  }, [pack, origin, targets, from, to, mode, capture]);
+  }, [pack, origin, targets, from, to, mode, capture, initialAltitude]);
   return state;
 }
 
@@ -283,4 +289,41 @@ function Track(props: {
 
 function fmtKm(m: number) {
   return `${Math.round(m / 1000)} km`;
+}
+
+/** Parking orbit altitude at the origin, in km. Empty = the body's low orbit from the Δv map. */
+function AltitudeInput({ origin }: { origin: Body }) {
+  const value = useTransferStore((s) => s.initialAltitude);
+  const set = useTransferStore((s) => s.setInitialAltitude);
+  const fallback = defaultParkingAltitude(origin);
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    if (draft === null) return;
+    const km = Number(draft);
+    const m = Math.round(km * 1000);
+    // Must clear the surface and stay inside the SOI; anything else goes back to the default.
+    set(draft.trim() === '' || !(km > 0) || m === fallback || origin.radius + m >= origin.soi ? null : m);
+    setDraft(null);
+  };
+  return (
+    <label title={`Circular parking orbit you leave ${origin.name} from. Default: its low orbit on the Δv map.`}>
+      orbit
+      <input
+        className="tt-alt"
+        type="number"
+        min={1}
+        step={10}
+        value={draft ?? String(Math.round((value ?? fallback) / 1000))}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+      />
+      km
+      {value !== null && (
+        <button className="tt-reset" onClick={() => set(null)} title={`Back to ${Math.round(fallback / 1000)} km`}>
+          ↺
+        </button>
+      )}
+    </label>
+  );
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatDuration, formatUt, type Body } from '../core/index.ts';
 import { useMapStore } from '../state/store.ts';
 import { requestPorkchop } from './client.ts';
-import { problemFor, settingsFor, useTransferStore } from './store.ts';
+import { problemFor, useTransferStore } from './store.ts';
 import { porkchopRange, type PorkchopGrid } from './windows.ts';
 
 const W = 180;
@@ -20,8 +20,11 @@ export function PorkchopPanel({ origin, target }: { origin: Body; target: Body }
   const system = useMapStore((s) => s.system);
   const ut = useMapStore((s) => s.ut);
   const cal = system.pack.calendar;
-  const { mode, capture, selected, select, openPorkchop } = useTransferStore();
-  const problem = useMemo(() => problemFor(origin, target, mode, capture), [origin, target, mode, capture]);
+  const { mode, capture, initialAltitude, selected, select, openPorkchop } = useTransferStore();
+  const problem = useMemo(
+    () => problemFor(origin, target, { mode, capture, initialAltitude }),
+    [origin, target, mode, capture, initialAltitude],
+  );
 
   // Centre on the selected transfer if it goes to this target, else on now + half a synodic period.
   const center =
@@ -33,14 +36,14 @@ export function PorkchopPanel({ origin, target }: { origin: Body; target: Body }
   useEffect(() => {
     let alive = true;
     setGrid(null);
-    requestPorkchop(system.pack, origin.id, target.id, settingsFor(origin, target, mode, capture), range, W, H).then(
+    requestPorkchop(system.pack, origin.id, target.id, problem.settings, range, W, H).then(
       (g) => alive && setGrid(g),
       () => alive && setGrid(null),
     );
     return () => {
       alive = false;
     };
-  }, [system.pack, origin, target, mode, capture, range]);
+  }, [system.pack, origin, target, problem, range]);
 
   const canvas = useRef<HTMLCanvasElement>(null);
   const scaleMax = grid ? grid.min.dv * 2 : 1;

@@ -22,11 +22,17 @@ export interface TransferSettings {
   mode: TransferMode;
 }
 
-/** Default parking altitude around a body: 30 km above the atmosphere, or 10% of the radius. */
+/**
+ * Default parking orbit altitude: the same low orbit the delta-v map uses. The pack's
+ * `deltaV.lowOrbitAltitude` hint if it has one, else 10 km above the atmosphere, else 5% of the
+ * radius (at least 10 km).
+ */
 export function defaultParkingAltitude(body: Body): number {
+  const hint = (body.data as { deltaV?: { lowOrbitAltitude?: number } }).deltaV?.lowOrbitAltitude;
+  if (hint) return hint;
   const atmo = body.data.physical.atmosphere?.height;
-  if (atmo) return atmo + 30_000;
-  return Math.max(10_000, Math.round(body.radius / 10 / 1000) * 1000);
+  if (atmo) return atmo + 10_000;
+  return Math.max(10_000, 0.05 * body.radius);
 }
 
 export function defaultSettings(origin: Body, target: Body): TransferSettings {

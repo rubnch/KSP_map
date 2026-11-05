@@ -57,6 +57,23 @@
   gap: 4px;
   color: var(--text-dim);
 }
+.tt-alt {
+  width: 58px;
+  font: inherit;
+  color: inherit;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-variant-numeric: tabular-nums;
+}
+.tt-reset {
+  padding: 0 2px;
+  color: var(--text-dim);
+}
+.tt-reset:hover {
+  color: var(--text);
+}
 .tt-seg {
   display: inline-flex;
   border: 1px solid var(--panel-border);
@@ -283,22 +300,23 @@
   color: var(--accent);
 }
 
-/* Porkchop plot: floats above the timeline. */
+/* Porkchop plot: docked bottom right, beside the timeline, so the middle of the map stays clear. */
 .porkchop {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(480px, calc(100vw - 32px));
-  padding: 8px 12px 10px;
+  position: fixed;
+  right: 16px;
+  bottom: 12px;
+  width: min(320px, calc(100vw - 32px));
+  padding: 8px 10px 10px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   backdrop-filter: blur(6px);
+  pointer-events: auto;
   z-index: 4;
 }
 .porkchop header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
@@ -310,17 +328,21 @@
 .porkchop header button:hover {
   color: var(--text);
 }
+.porkchop header strong {
+  margin-right: auto;
+}
 .pc-legend {
+  order: 3;
+  width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
   font-size: 10.5px;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
 .pc-ramp {
-  width: 90px;
+  width: 110px;
   height: 8px;
   border-radius: 2px;
 }
@@ -421,6 +443,12 @@
 }
 
 @media (max-width: 720px) {
+  /* Phones: no room beside the timeline, so the plot goes over the top of the screen. */
+  .porkchop {
+    right: 16px;
+    top: 12px;
+    bottom: auto;
+  }
   .tt-dv {
     display: none;
   }

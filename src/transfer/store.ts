@@ -12,6 +12,8 @@ interface TransferState {
   mode: TransferMode;
   /** Capture into a low circular orbit at the target (else: flyby / aerobrake, no capture burn). */
   capture: boolean;
+  /** Parking orbit altitude at the origin, metres; null = the body's default low orbit. */
+  initialAltitude: number | null;
   selected: { targetId: string; transfer: Transfer } | null;
   porkchopTargetId: string | null;
   setOpen: (open: boolean) => void;
@@ -19,6 +21,7 @@ interface TransferState {
   setSpanYears: (y: number) => void;
   setMode: (m: TransferMode) => void;
   setCapture: (c: boolean) => void;
+  setInitialAltitude: (m: number | null) => void;
   select: (sel: { targetId: string; transfer: Transfer } | null) => void;
   openPorkchop: (targetId: string | null) => void;
 }
@@ -29,13 +32,15 @@ export const useTransferStore = create<TransferState>((set) => ({
   spanYears: 10,
   mode: 'optimal',
   capture: true,
+  initialAltitude: null,
   selected: null,
   porkchopTargetId: null,
   setOpen: (open) => set({ open, ...(open ? {} : { selected: null, porkchopTargetId: null }) }),
-  setOrigin: (originId) => set({ originId, selected: null, porkchopTargetId: null }),
+  setOrigin: (originId) => set({ originId, initialAltitude: null, selected: null, porkchopTargetId: null }),
   setSpanYears: (spanYears) => set({ spanYears }),
   setMode: (mode) => set({ mode, selected: null }),
   setCapture: (capture) => set({ capture, selected: null }),
+  setInitialAltitude: (initialAltitude) => set({ initialAltitude, selected: null }),
   select: (selected) => set({ selected }),
   openPorkchop: (porkchopTargetId) => set({ porkchopTargetId }),
 }));
@@ -49,14 +54,21 @@ export function targetsOf(origin: Body): Body[] {
   return origin.parent ? origin.parent.children.filter((b) => b !== origin) : [];
 }
 
-export function settingsFor(origin: Body, target: Body, mode: TransferMode, capture: boolean): TransferSettings {
+/** The options that change the numbers: how to fly, whether to capture, the parking orbit. */
+export interface TransferOptions {
+  mode: TransferMode;
+  capture: boolean;
+  initialAltitude: number | null;
+}
+
+export function settingsFor(origin: Body, target: Body, o: TransferOptions): TransferSettings {
   return {
-    initialAltitude: defaultParkingAltitude(origin),
-    finalAltitude: capture ? defaultParkingAltitude(target) : null,
-    mode,
+    initialAltitude: o.initialAltitude ?? defaultParkingAltitude(origin),
+    finalAltitude: o.capture ? defaultParkingAltitude(target) : null,
+    mode: o.mode,
   };
 }
 
-export function problemFor(origin: Body, target: Body, mode: TransferMode, capture: boolean): TransferProblem {
-  return new TransferProblem(origin, target, settingsFor(origin, target, mode, capture));
+export function problemFor(origin: Body, target: Body, o: TransferOptions): TransferProblem {
+  return new TransferProblem(origin, target, settingsFor(origin, target, o));
 }

@@ -10,12 +10,12 @@ export function TransferDetails({ origin }: { origin: Body }) {
   const system = useMapStore((s) => s.system);
   const setUt = useMapStore((s) => s.setUt);
   const cal = system.pack.calendar;
-  const { selected, mode, capture, select, openPorkchop } = useTransferStore();
+  const { selected, mode, capture, initialAltitude, select, openPorkchop } = useTransferStore();
   if (!selected) return null;
   const target = system.find(selected.targetId);
   if (!target) return null;
   const tr = selected.transfer;
-  const problem = problemFor(origin, target, mode, capture);
+  const problem = problemFor(origin, target, { mode, capture, initialAltitude });
   const ejectFrom = tr.ejectionAngle;
   // Outward transfers are usually given from prograde, inward ones from retrograde.
   const outward = target.orbit!.a > origin.orbit!.a;
