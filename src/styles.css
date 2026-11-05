@@ -474,13 +474,10 @@ button {
   stroke: rgba(0, 0, 0, 0.55);
   stroke-width: 2.5px;
 }
+/* Light lines (the star's yellow, white bodies): white numbers need a solid dark outline. */
 .dv-edge-label.ink text:not(.plane) {
-  fill: #1a1d24;
-  stroke: rgba(255, 255, 255, 0.35);
-}
-.dv-edge-label.ink .mark,
-.dv-edge-label.ink .mark.on {
-  fill: #1a1d24;
+  stroke: rgba(0, 0, 0, 0.9);
+  stroke-width: 3.5px;
 }
 .dv-edge-label.dim {
   opacity: 0.4;
